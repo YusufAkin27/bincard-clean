@@ -12,19 +12,15 @@ import akin.city_card.user.exceptions.OnlyPhotosAndVideosException;
 import akin.city_card.user.exceptions.PhotoSizeLargerException;
 import akin.city_card.user.exceptions.VideoSizeLargerException;
 import akin.city_card.user.model.RequestStatus;
-import akin.city_card.user.model.User;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.wallet.core.request.*;
 import akin.city_card.wallet.core.response.*;
 import akin.city_card.wallet.exceptions.*;
-import akin.city_card.wallet.model.*;
+import akin.city_card.wallet.model.Wallet;
+import akin.city_card.wallet.model.WalletActivityType;
+import akin.city_card.wallet.model.WalletStatus;
 import akin.city_card.wallet.service.abstracts.QRCodeService;
 import akin.city_card.wallet.service.abstracts.WalletService;
-import com.iyzipay.model.Locale;
-import com.iyzipay.model.Payment;
-import com.iyzipay.request.CreateThreedsPaymentRequest;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -33,7 +29,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -47,7 +42,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/v1/api/wallet")
@@ -156,7 +150,7 @@ public class WalletController {
     public WalletDTO getMyWallet(@AuthenticationPrincipal UserDetails user) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
         return walletService.getMyWallet(user.getUsername());
     }
-
+    //user
     @GetMapping("/transfers/outgoing")
     public DataResponseMessage<Page<WalletTransactionDTO>> getOutgoingTransfers(
             @AuthenticationPrincipal UserDetails user,
@@ -169,6 +163,7 @@ public class WalletController {
         return DataResponseMessage.of(transfers);
     }
 
+    //user
     @GetMapping("/transfers/incoming")
     public DataResponseMessage<Page<WalletTransactionDTO>> getIncomingTransfers(
             @AuthenticationPrincipal UserDetails user,
@@ -215,7 +210,6 @@ public class WalletController {
 
         return walletService.complete3DPayment(paymentId, conversationId);
     }
-
 
 
     // ========== QR Kod İşlemleri ==========
