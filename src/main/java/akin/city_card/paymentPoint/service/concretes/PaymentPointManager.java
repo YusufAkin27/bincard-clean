@@ -256,12 +256,17 @@ public class PaymentPointManager implements PaymentPointService {
                     .filter(pp -> {
                         if (query == null || query.isBlank()) return true;
                         String q = query.toLowerCase();
+
                         return (pp.getName() != null && pp.getName().toLowerCase().contains(q)) ||
+                                (pp.getWorkingHours() != null && pp.getWorkingHours().toLowerCase().contains(q)) ||
+                                (pp.getDescription() != null && pp.getDescription().toLowerCase().contains(q)) ||
+                                (pp.getContactNumber() != null && pp.getContactNumber().toLowerCase().contains(q)) ||
                                 (pp.getAddress() != null && (
                                         (pp.getAddress().getCity() != null && pp.getAddress().getCity().toLowerCase().contains(q)) ||
-                                                (pp.getAddress().getDistrict() != null && pp.getAddress().getDistrict().toLowerCase().contains(q))
-                                )) ||
-                                (pp.getWorkingHours() != null && pp.getWorkingHours().toLowerCase().contains(q));
+                                                (pp.getAddress().getDistrict() != null && pp.getAddress().getDistrict().toLowerCase().contains(q)) ||
+                                                (pp.getAddress().getStreet() != null && pp.getAddress().getStreet().toLowerCase().contains(q)) ||
+                                                (pp.getAddress().getPostalCode() != null && pp.getAddress().getPostalCode().toLowerCase().contains(q))
+                                ));
                     })
                     .toList();
 
