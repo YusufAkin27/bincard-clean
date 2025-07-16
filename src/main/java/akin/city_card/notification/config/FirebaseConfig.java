@@ -1,4 +1,4 @@
-package akin.city_card.notification;
+package akin.city_card.notification.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;

@@ -116,4 +116,9 @@ public class User extends SecurityUser {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<SearchHistory> searchHistory;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<akin.city_card.notification.model.Notification> notifications = new ArrayList<>();
+
 }

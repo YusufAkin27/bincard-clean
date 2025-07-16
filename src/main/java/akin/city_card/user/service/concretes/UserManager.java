@@ -20,6 +20,8 @@ import akin.city_card.mail.MailService;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.notification.model.NotificationPreferences;
+import akin.city_card.notification.model.NotificationType;
+import akin.city_card.notification.service.FCMService;
 import akin.city_card.redis.CachedUserLookupService;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
@@ -31,7 +33,6 @@ import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.exception.VerificationCodeStillValidException;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.security.repository.TokenRepository;
-import akin.city_card.sms.SmsRequest;
 import akin.city_card.sms.SmsService;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.Station;
@@ -71,8 +72,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @Service
 @RequiredArgsConstructor
@@ -96,7 +95,8 @@ public class UserManager implements UserService {
     private final CachedUserLookupService cachedUserLookupService;
     private final RouteRepository routeRepository;
     private final StationRepository stationRepository;
-    private final  AuditLogConverter auditLogConverter;
+    private final AuditLogConverter auditLogConverter;
+    private final FCMService fcmService;
     private final TokenRepository tokenRepository;
 
 
@@ -207,6 +207,14 @@ public class UserManager implements UserService {
 
         verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.REGISTER);
 
+        String fcmResult = fcmService.sendNotificationToToken(
+                user,
+                "Hoşgeldiniz!",
+                "Telefon numaranız başarıyla doğrulandı ve hesabınız aktif edildi.",
+                NotificationType.SUCCESS,
+                null
+        );
+
         return new ResponseMessage("Telefon numarası başarıyla doğrulandı. Hesabınız aktif hale getirildi.", true);
     }
 
@@ -244,7 +252,14 @@ public class UserManager implements UserService {
         if (isUpdated) {
             userRepository.save(user);
 
-
+            // Bildirimi kaydet ve anlık gönder
+            String fcmResult = fcmService.sendNotificationToToken(
+                    user,
+                    "Profil Güncelleme",
+                    "Profil bilgileriniz başarıyla güncellendi.",
+                    NotificationType.SUCCESS,
+                    null
+            );
             return new ResponseMessage("Profil başarıyla güncellendi.", true);
         }
 
@@ -259,6 +274,15 @@ public class UserManager implements UserService {
         user.setStatus(UserStatus.INACTIVE);
         user.setDeleted(true);
         tokenRepository.deleteBySecurityUserId(user.getId());
+        // Bildirim kaydet ve anlık gönder
+        String fcmResult = fcmService.sendNotificationToToken(
+                user,
+                "Pasif oldunuz !",
+                "Hesabınız devre dışı bırakıldı. Tekrar giriş yapamazsınız.",
+                NotificationType.WARNING,
+                null
+        );
+
         return new ResponseMessage("Kullanıcı hesabı silindi.", true);
     }
 
@@ -800,8 +824,8 @@ public class UserManager implements UserService {
     @Override
     @Transactional
     public ResponseMessage deleteProfilePhoto(String username) throws UserNotFoundException {
-        User user= userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        if (user.getProfileInfo()!=null){
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        if (user.getProfileInfo() != null) {
             user.getProfileInfo().setProfilePicture("https://thumbs.dreamstime.com/z/default-profile-picture-icon-high-resolution-high-resolution-default-profile-picture-icon-symbolizing-no-display-picture-360167031.jpg");
         }
         return new ResponseMessage("Profil fotoğrafı silindi", true);
@@ -811,8 +835,8 @@ public class UserManager implements UserService {
     @Override
     @Transactional
     public void updateLocation(String username, UpdateLocationRequest updateLocationRequest) throws UserNotFoundException {
-        SecurityUser securityUser=securityUserRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        Location location=new Location();
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        Location location = new Location();
         location.setUser(securityUser);
         location.setLatitude(updateLocationRequest.getLatitude());
         location.setLongitude(updateLocationRequest.getLongitude());

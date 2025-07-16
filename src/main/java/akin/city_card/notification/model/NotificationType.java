@@ -5,5 +5,9 @@ public enum NotificationType {
     SUCCESS,
     WARNING,
     ERROR,
-    SYSTEM
+    SYSTEM,
+    ANNOUNCEMENT,  // Duyurular
+    CAMPAIGN,      // Kampanyalar
+    PROMOTION,     // Tanıtımlar
+    EVENT          // Etkinlikler
 }

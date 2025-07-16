@@ -1,6 +1,7 @@
 package akin.city_card.notification.model;
 
 import akin.city_card.user.model.User;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ public class Notification {
     // Bildirimin kime ait olduğu
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonBackReference
     private User user;
 
     // Başlık (isteğe bağlı)
