@@ -3,25 +3,35 @@ package akin.city_card.wallet.core.converter;
 import akin.city_card.wallet.core.response.TransferDetailsDTO;
 import akin.city_card.wallet.core.response.WalletActivityDTO;
 import akin.city_card.wallet.core.response.WalletDTO;
-import akin.city_card.wallet.model.Wallet;
-import akin.city_card.wallet.model.WalletActivity;
-import akin.city_card.wallet.model.WalletTransfer;
+import akin.city_card.wallet.core.response.WalletTransactionDTO;
+import akin.city_card.wallet.model.*;
+import akin.city_card.wallet.repository.WalletActivityRepository;
 import akin.city_card.wallet.repository.WalletTransactionRepository;
 import akin.city_card.wallet.repository.WalletTransferRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class WalletConverterImpl implements WalletConverter {
     private final WalletTransactionRepository walletTransactionRepository;
     private final WalletTransferRepository walletTransferRepository;
+    private final WalletActivityRepository walletActivityRepository;
 
     @Override
     public WalletDTO convertToDTO(Wallet wallet) {
         if (wallet == null) {
             return null;
         }
+
+        List<WalletActivityDTO> activities = wallet.getStatus() == WalletStatus.ACTIVE
+                ? walletActivityRepository.findTop10ByWalletIdOrderByActivityDateDesc(wallet.getId()).stream()
+                .map(this::convertWalletActivityDTO)
+                .toList()
+                : List.of();
+
 
         return WalletDTO.builder()
                 .walletId(wallet.getId())
@@ -33,10 +43,12 @@ public class WalletConverterImpl implements WalletConverter {
                 .activeTransferCode(wallet.getActiveTransferCode())
                 .transferCodeExpiresAt(wallet.getTransferCodeExpiresAt())
                 .totalTransactionCount(wallet.getTotalTransactionCount())
-                .createdAt(wallet.getCreatedAt()) // AuditableEntity'den miras alıyor
+                .createdAt(wallet.getCreatedAt())
                 .lastUpdated(wallet.getLastUpdated())
+                .activities(activities)  // burası eklendi
                 .build();
     }
+
 
     @Override
     public TransferDetailsDTO convertToTransferDTO(WalletTransfer walletTransfer) {
@@ -92,6 +104,22 @@ public class WalletConverterImpl implements WalletConverter {
 
 
         return dtoBuilder.build();
+    }
+
+    @Override
+    public WalletTransactionDTO convertToTransactionDTO(WalletTransaction tx) {
+        if (tx == null) return null;
+
+        return WalletTransactionDTO.builder()
+                .id(tx.getId())
+                .amount(tx.getAmount())
+                .type(tx.getType())
+                .status(tx.getStatus())
+                .timestamp(tx.getTimestamp())
+                .description(tx.getDescription())
+                .externalReference(tx.getExternalReference())
+                .userId(tx.getUserId())
+                .build();
     }
 
 

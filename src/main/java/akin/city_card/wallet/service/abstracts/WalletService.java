@@ -1,6 +1,7 @@
 package akin.city_card.wallet.service.abstracts;
 
 import akin.city_card.bus.exceptions.UnauthorizedAccessException;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -15,13 +16,12 @@ import akin.city_card.wallet.core.request.ProcessIdentityRequest;
 import akin.city_card.wallet.core.request.CreateWalletRequest;
 import akin.city_card.wallet.core.request.TopUpBalanceRequest;
 import akin.city_card.wallet.core.request.WalletTransferRequest;
-import akin.city_card.wallet.core.response.BalanceHistoryDTO;
-import akin.city_card.wallet.core.response.WalletActivityDTO;
-import akin.city_card.wallet.core.response.WalletDTO;
-import akin.city_card.wallet.core.response.WalletStatsDTO;
+import akin.city_card.wallet.core.response.*;
 import akin.city_card.wallet.exceptions.*;
+import akin.city_card.wallet.model.Wallet;
 import akin.city_card.wallet.model.WalletActivityType;
 import akin.city_card.wallet.model.WalletStatus;
+import akin.city_card.wallet.model.WalletTransfer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 
 public interface WalletService {
-    DataResponseMessage<BigDecimal> getWalletBalance(String phone) throws WalletNotFoundException, UserNotFoundException, WalletNotActiveException;
     ResponseMessage transfer(String senderPhone,@Valid WalletTransferRequest walletTransfer) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException;
     ResponseMessage toggleWalletStatus(String phone, boolean isActive) throws WalletNotActiveException, WalletNotFoundException, UserNotFoundException, WalletDeactivationException;
     ResponseMessage createWallet(@Valid String phone, CreateWalletRequest createWalletRequest) throws UserNotFoundException, OnlyPhotosAndVideosException, PhotoSizeLargerException, IOException, VideoSizeLargerException, FileFormatCouldNotException;
@@ -57,9 +56,9 @@ public interface WalletService {
 
     DataResponseMessage<Map<String, Object>> getSystemStats(String username) throws AdminOrSuperAdminNotFoundException;
 
-    ResponseMessage forceTransaction(String username, String userPhone, BigDecimal amount, String reason);
+    ResponseMessage forceTransaction(String username, String userPhone, BigDecimal amount, String reason) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException;
 
-    DataResponseMessage<List<?>> getSuspiciousActivities(String username, int page, int size);
+    DataResponseMessage<PageDTO<TransferDetailsDTO>> getSuspiciousActivities(String username, int page, int size) throws UserNotFoundException, AdminOrSuperAdminNotFoundException;
 
     DataResponseMessage<byte[]> exportTransactionsExcel(String username, LocalDate start, LocalDate end) throws UserNotFoundException, UnauthorizedAreaException;
     DataResponseMessage<byte[]> exportTransactionsPDF(String username, LocalDate start, LocalDate end);
@@ -78,5 +77,12 @@ public interface WalletService {
 
 
     ResponseEntity<String> complete3DPayment(String paymentId, String conversationId);
+
+    Wallet getWalletByUsername(String username) throws WalletNotActiveException, WalletNotFoundException, UserNotFoundException;
+
+    Page<WalletTransactionDTO> getOutgoingTransfers(Long id, int page, int size);
+
+    Page<WalletTransactionDTO> getIncomingTransfers(Long id, int page, int size);
+
 }
 

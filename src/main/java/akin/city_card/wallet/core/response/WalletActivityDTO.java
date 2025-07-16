@@ -2,12 +2,7 @@ package akin.city_card.wallet.core.response;
 
 import akin.city_card.user.core.response.Views;
 import akin.city_card.wallet.model.WalletActivityType;
-import lombok.Builder;
-import lombok.Data;
-
-import java.time.LocalDateTime;
-
-
+import akin.city_card.wallet.model.WalletStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonView;
 import lombok.Builder;
@@ -43,7 +38,7 @@ public class WalletActivityDTO {
     private Long walletId;
 
     @JsonView(Views.Admin.class)
-    private String transactionType; // örn. "TRANSFER", "TOP_UP"
+    private String transactionType; // Örn: "TRANSFER", "TOP_UP", "WITHDRAWAL"
 
     @JsonView(Views.Admin.class)
     private String transactionStatus;
@@ -52,5 +47,19 @@ public class WalletActivityDTO {
     private BigDecimal amount;
 
     @JsonView(Views.Admin.class)
-    private String performedBy; // işlem yapan kullanıcının adı veya ID'si
+    private String performedBy; // İşlemi yapan kullanıcı adı veya kullanıcı ID'si
+
+    @JsonView(Views.Admin.class)
+    private String walletOwnerName; // Cüzdan sahibinin adı (opsiyonel)
+
+    @JsonView(Views.Admin.class)
+    private String currency; // Para birimi
+
+    @JsonView(Views.Admin.class)
+    private WalletStatus walletStatus; // Cüzdan durumu (aktif, pasif vb.)
+
+    // Örnek ek alan: işlem ya da transferin detay linki / ID bilgisi
+    @JsonView(Views.Admin.class)
+    private String referenceCode;
+
 }

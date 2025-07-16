@@ -13,5 +13,8 @@ public class DataResponseMessage<T> extends ResponseMessage {
         super(message, isSuccess);
         this.data = data;
     }
+    public static <T> DataResponseMessage<T> of(T data) {
+        return new DataResponseMessage<>("İşlem başarılı", true, data);
+    }
 
 }

@@ -41,4 +41,10 @@ public class TransferDetailsDTO {
 
     @JsonView(Views.SuperAdmin.class)
     private Long receiverWalletId;
+
+    @JsonView(Views.SuperAdmin.class)
+    private String senderUserName; // Kullanıcı adı, varsa
+
+    @JsonView(Views.SuperAdmin.class)
+    private String receiverUserName; // Kullanıcı adı, varsa
 }

@@ -4,8 +4,10 @@ package akin.city_card.wallet.model;
 public enum TransactionType {
     LOAD,           // Cüzdana para yükleme
     RIDE,           // Ulaşımda harcama
-    WITHDRAW,   // Başka kullanıcıya gönderim
-    DEPOSIT,    // Başka kullanıcıdan gelen
+    TRANSFER_OUT,   // Başka kullanıcıya gönderim
+    TRANSFER_IN,    // Başka kullanıcıdan gelen
     REFUND,         // İade işlemi
+    FORCE_CREDIT,
+    FORCE_DEBIT,
     ADJUSTMENT      // Manuel bakiye düzeltme (destek vs.)
 }

@@ -67,6 +67,16 @@ public class Wallet extends AuditableEntity {
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<WalletStatusLog> statusLogs = new ArrayList<>();
 
+    @OneToMany(mappedBy = "senderWallet", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<WalletTransfer> outgoingTransfers = new ArrayList<>();
+
+    @OneToMany(mappedBy = "receiverWallet", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<WalletTransfer> incomingTransfers = new ArrayList<>();
+
+    @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<WalletActivity> activities = new ArrayList<>();
+
 
     @PrePersist
     private void generateWibanIfAbsent() throws UserNotFoundException, IdentityInfoNotFoundException {

@@ -2,6 +2,7 @@ package akin.city_card.wallet.repository;
 
 import akin.city_card.wallet.model.WalletActivity;
 import akin.city_card.wallet.model.WalletActivityType;
+import io.micrometer.common.KeyValues;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,4 +18,6 @@ public interface WalletActivityRepository extends JpaRepository<WalletActivity, 
             Long walletId, WalletActivityType type, LocalDateTime start, LocalDateTime end, Pageable pageable);
 
 
+
+    List<WalletActivity> findTop10ByWalletIdOrderByActivityDateDesc(Long walletId);
 }

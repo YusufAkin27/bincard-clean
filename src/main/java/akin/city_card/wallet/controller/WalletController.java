@@ -1,6 +1,7 @@
 package akin.city_card.wallet.controller;
 
 import akin.city_card.bus.exceptions.UnauthorizedAccessException;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -91,11 +92,6 @@ public class WalletController {
         );
     }
 
-    //user
-    @GetMapping("/balance")
-    public DataResponseMessage<BigDecimal> getBalance(@AuthenticationPrincipal UserDetails user) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
-        return walletService.getWalletBalance(user.getUsername());
-    }
 
     //user
     @PostMapping("/transfer")
@@ -159,6 +155,30 @@ public class WalletController {
     @GetMapping("/my-wallet")
     public WalletDTO getMyWallet(@AuthenticationPrincipal UserDetails user) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
         return walletService.getMyWallet(user.getUsername());
+    }
+
+    @GetMapping("/transfers/outgoing")
+    public DataResponseMessage<Page<WalletTransactionDTO>> getOutgoingTransfers(
+            @AuthenticationPrincipal UserDetails user,
+            @RequestParam int page,
+            @RequestParam int size) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
+
+        Wallet wallet = walletService.getWalletByUsername(user.getUsername());
+        Page<WalletTransactionDTO> transfers = walletService.getOutgoingTransfers(wallet.getId(), page, size);
+
+        return DataResponseMessage.of(transfers);
+    }
+
+    @GetMapping("/transfers/incoming")
+    public DataResponseMessage<Page<WalletTransactionDTO>> getIncomingTransfers(
+            @AuthenticationPrincipal UserDetails user,
+            @RequestParam int page,
+            @RequestParam int size) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
+
+        Wallet wallet = walletService.getWalletByUsername(user.getUsername());
+        Page<WalletTransactionDTO> transfers = walletService.getIncomingTransfers(wallet.getId(), page, size);
+
+        return DataResponseMessage.of(transfers);
     }
 
     //user
@@ -345,16 +365,16 @@ public class WalletController {
             @AuthenticationPrincipal UserDetails admin,
             @RequestParam String userPhone,
             @RequestParam BigDecimal amount,
-            @RequestParam String reason) {
+            @RequestParam String reason) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
         return walletService.forceTransaction(admin.getUsername(), userPhone, amount, reason);
     }
 
     //admin
     @GetMapping("/admin/suspicious-activities")
-    public DataResponseMessage<List<?>> getSuspiciousActivities(
+    public DataResponseMessage<PageDTO<TransferDetailsDTO>> getSuspiciousActivities(
             @AuthenticationPrincipal UserDetails admin,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size) throws UserNotFoundException, AdminOrSuperAdminNotFoundException {
         return walletService.getSuspiciousActivities(admin.getUsername(), page, size);
     }
 
