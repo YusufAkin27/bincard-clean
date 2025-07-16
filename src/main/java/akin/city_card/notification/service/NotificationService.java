@@ -1,5 +1,8 @@
 package akin.city_card.notification.service;
 
+import akin.city_card.notification.core.response.NotificationDTO;
+import akin.city_card.notification.exceptions.NotificationNotFoundException;
+import akin.city_card.notification.exceptions.YouCanNotDeleteTheNotification;
 import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationType;
 import akin.city_card.notification.repository.NotificationRepository;
@@ -34,42 +37,67 @@ public class NotificationService {
         notification.setSentAt(LocalDateTime.now());
         notification.setRead(false);
         notification.setDeleted(false);
-        user.getNotifications().add(notification);
+
         return notificationRepository.save(notification);
     }
 
-    // 📄 Bildirimleri getir (filtreli + sayfalı)
-    public Page<Notification> getNotifications(String username, Optional<NotificationType> type, Pageable pageable) throws UserNotFoundException {
+    public Page<NotificationDTO> getNotifications(String username, Optional<NotificationType> type, Pageable pageable) throws UserNotFoundException {
         User user = getUserByUsernameOrThrow(username);
+
+        Page<Notification> notifications;
         if (type.isPresent()) {
-            return notificationRepository.findByUserIdAndTypeAndDeletedFalseOrderBySentAtDesc(user.getId(), type.get(), pageable);
+            notifications = notificationRepository.findByUserIdAndTypeAndDeletedFalseOrderBySentAtDesc(user.getId(), type.get(), pageable);
+        } else {
+            notifications = notificationRepository.findByUserIdAndDeletedFalseOrderBySentAtDesc(user.getId(), pageable);
         }
-        return notificationRepository.findByUserIdAndDeletedFalseOrderBySentAtDesc(user.getId(), pageable);
+
+        return notifications.map(NotificationDTO::fromEntity);
     }
 
-    // 🔍 Bildirim detayı getir
-    public Optional<Notification> getNotificationById(String username, Long notificationId) throws UserNotFoundException {
-        User user = getUserByUsernameOrThrow(username);
-        return notificationRepository.findByIdAndDeletedFalse(notificationId)
-                .filter(notification -> notification.getUser().getId().equals(user.getId()));
-    }
 
-    // ❌ Soft delete
     @Transactional
-    public void softDeleteNotification(String username, Long notificationId) throws UserNotFoundException {
+    public Optional<NotificationDTO> getNotificationById(String username, Long notificationId) throws UserNotFoundException {
         User user = getUserByUsernameOrThrow(username);
-        notificationRepository.findById(notificationId).ifPresent(notification -> {
-            if (notification.getUser().getId().equals(user.getId())) {
-                notification.setDeleted(true);
-                notificationRepository.save(notification);
-            } else {
-                throw new IllegalArgumentException("Bu kullanıcıya ait olmayan bildirimi silemezsiniz.");
-            }
-        });
+
+        return notificationRepository.findByIdAndDeletedFalse(notificationId)
+                .filter(notification -> notification.getUser().getId().equals(user.getId()))
+                .map(notification -> {
+                    if (!notification.isRead()) {
+                        notification.setRead(true); // okunmuş olarak işaretle
+                        notification.setReadAt(LocalDateTime.now()); // okunma zamanını ayarla
+                        notificationRepository.save(notification);   // kaydet
+                    }
+                    return NotificationDTO.fromEntity(notification);
+                });
     }
+
+
+
+    @Transactional
+    public void softDeleteNotification(String username, Long notificationId) throws UserNotFoundException, NotificationNotFoundException, YouCanNotDeleteTheNotification {
+        User user = getUserByUsernameOrThrow(username);
+
+        Notification notification = notificationRepository.findByIdAndDeletedFalse(notificationId)
+                .orElseThrow(NotificationNotFoundException::new);
+
+        if (!notification.getUser().getId().equals(user.getId())) {
+            throw new YouCanNotDeleteTheNotification();
+        }
+
+        notification.setDeleted(true);
+        notificationRepository.save(notification);
+    }
+
 
     private User getUserByUsernameOrThrow(String username) throws UserNotFoundException {
         return userRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
     }
+
+    public long countNotifications(String username, Optional<NotificationType> type) throws UserNotFoundException {
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        return type.map(notificationType -> notificationRepository.countByUserAndTypeAndDeletedFalseAndIsReadFalse(user, notificationType)).orElseGet(() -> notificationRepository.countByUserAndDeletedFalseAndIsReadFalse(user));
+    }
+
+
 }

@@ -45,4 +45,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByStatus(UserStatus status);
 
 
+    @Query("SELECT DISTINCT u FROM User u JOIN u.geoAlerts g WHERE u.status = 'ACTIVE' AND  g.active = true")
+    List<User> findAllActiveWithGeoAlerts();
+
 }

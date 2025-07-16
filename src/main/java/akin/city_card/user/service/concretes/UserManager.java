@@ -207,7 +207,7 @@ public class UserManager implements UserService {
 
         verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.REGISTER);
 
-        String fcmResult = fcmService.sendNotificationToToken(
+        fcmService.sendNotificationToToken(
                 user,
                 "Hoşgeldiniz!",
                 "Telefon numaranız başarıyla doğrulandı ve hesabınız aktif edildi.",
@@ -244,7 +244,6 @@ public class UserManager implements UserService {
             isUpdated = true;
         }
         if (updateProfileRequest.getEmail() != null && !updateProfileRequest.getEmail().isBlank()) {
-            // Burada eski email yerine güncellenen email set edilmeli, yanlış setlenmiş
             user.getProfileInfo().setEmail(updateProfileRequest.getEmail().trim().toLowerCase());
             isUpdated = true;
         }
@@ -253,7 +252,7 @@ public class UserManager implements UserService {
             userRepository.save(user);
 
             // Bildirimi kaydet ve anlık gönder
-            String fcmResult = fcmService.sendNotificationToToken(
+         fcmService.sendNotificationToToken(
                     user,
                     "Profil Güncelleme",
                     "Profil bilgileriniz başarıyla güncellendi.",
@@ -274,8 +273,7 @@ public class UserManager implements UserService {
         user.setStatus(UserStatus.INACTIVE);
         user.setDeleted(true);
         tokenRepository.deleteBySecurityUserId(user.getId());
-        // Bildirim kaydet ve anlık gönder
-        String fcmResult = fcmService.sendNotificationToToken(
+         fcmService.sendNotificationToToken(
                 user,
                 "Pasif oldunuz !",
                 "Hesabınız devre dışı bırakıldı. Tekrar giriş yapamazsınız.",
@@ -352,6 +350,7 @@ public class UserManager implements UserService {
     }
 
     @Override
+    @Transactional
     public ResponseMessage resetPassword(PasswordResetRequest request)
             throws PasswordResetTokenNotFoundException,
             PasswordResetTokenExpiredException,
@@ -387,11 +386,20 @@ public class UserManager implements UserService {
         passwordResetToken.setUsed(true);
         passwordResetTokenRepository.save(passwordResetToken);
 
+        if (user instanceof User appUser) {
+            String title = "Şifre Sıfırlama";
+            String message = "Şifreniz başarıyla sıfırlandı.";
+            NotificationType type = NotificationType.SUCCESS;
+
+            fcmService.sendNotificationToToken(appUser, title, message, type, null);
+        }
+
         return new ResponseMessage("Şifreniz başarıyla sıfırlandı.", true);
     }
 
 
     @Override
+    @Transactional
     public ResponseMessage changePassword(String username, ChangePasswordRequest request)
             throws UserIsDeletedException, UserNotActiveException, UserNotFoundException, PasswordsDoNotMatchException, InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException {
 
@@ -419,6 +427,13 @@ public class UserManager implements UserService {
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+
+
+        String title = "Şifre Güncelleme";
+        String message = "Şifreniz başarıyla güncellendi.";
+        NotificationType type = NotificationType.SUCCESS;
+
+        fcmService.sendNotificationToToken(user, title, message, type, null);
 
         return new ResponseMessage("Şifre başarıyla güncellendi.", true);
     }

@@ -52,6 +52,8 @@ public class GeoAlert {
     @Column(length = 100, nullable = false)
     private String alertName; // Kullanıcı dostu isim
 
+    private boolean isNotified;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

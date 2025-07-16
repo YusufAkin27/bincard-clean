@@ -37,6 +37,9 @@ public class BusCard {
     private LocalDate issueDate;
     private LocalDate expiryDate;
 
+    private boolean lowBalanceNotified = false;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;

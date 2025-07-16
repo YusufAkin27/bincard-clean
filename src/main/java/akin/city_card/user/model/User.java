@@ -5,6 +5,7 @@ import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.news.model.NewsLike;
 import akin.city_card.news.model.NewsType;
 import akin.city_card.news.model.NewsViewHistory;
+import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationPreferences;
 import akin.city_card.route.model.Route;
 import akin.city_card.security.entity.SecurityUser;
@@ -38,6 +39,9 @@ public class User extends SecurityUser {
     private UserIdentityInfo identityInfo;
 
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<GeoAlert> geoAlerts;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
@@ -109,9 +113,6 @@ public class User extends SecurityUser {
     @JsonIgnore
     private List<VerificationCode> verificationCodes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<GeoAlert> geoAlerts;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
@@ -119,6 +120,6 @@ public class User extends SecurityUser {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
-    private List<akin.city_card.notification.model.Notification> notifications = new ArrayList<>();
+    private List<Notification> notifications = new ArrayList<>();
 
 }

@@ -212,11 +212,7 @@ public class UserController {
         userService.updateLocation(userDetails.getUsername(),updateLocationRequest);
     }
 
-    // CÜZDAN
-    @GetMapping("/wallet")
-    public WalletDTO getWallet(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException, WalletIsEmptyException {
-        return userService.getWallet(userDetails.getUsername());
-    }
+
 
     // BİLDİRİM TERCİHLERİ
     @PutMapping("/notification-preferences")
