@@ -4,6 +4,8 @@ import akin.city_card.bus.exceptions.UnauthorizedAccessException;
 import akin.city_card.cloudinary.MediaUploadService;
 import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
+import akin.city_card.notification.model.NotificationType;
+import akin.city_card.notification.service.FCMService;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.entity.Role;
@@ -80,6 +82,7 @@ public class WalletManager implements WalletService {
     private final WalletConverter walletConverter;
     private final TopUpSessionCache topUpSessionCache;
     private final UserConverter userConverter;
+    private final FCMService fcmService;
 
 
     private User findReceiverByIdentifier(String identifier) throws UserNotFoundException {
@@ -210,6 +213,14 @@ public class WalletManager implements WalletService {
 
         walletActivityRepository.save(receiverActivity);
 
+        fcmService.sendNotificationToToken(
+                receiver,
+                "Para Transferi Alındı",
+                String.format("%s numaralı kullanıcıdan ₺%s tutarında para aldınız.", sender.getUserNumber(), transferAmount),
+                NotificationType.INFO,
+                null // opsiyonel: hedef ekran URL'si gibi bir şey varsa yaz
+        );
+
         String msg = String.format("transferId: %d\namount: %s\nsenderBalance: %s\nreceiverPhone: %s",
                 savedTransfer.getId(), transferAmount, senderWallet.getBalance(), receiver.getUserNumber());
 
@@ -271,6 +282,14 @@ public class WalletManager implements WalletService {
 
         walletStatusLogRepository.save(statusLog);
         walletRepository.save(wallet);
+
+        fcmService.sendNotificationToToken(
+                user,
+                "Cüzdan Durumu Güncellendi",
+                isActive ? "Cüzdanınız yeniden aktifleştirildi." : "Cüzdanınız askıya alındı.",
+                NotificationType.INFO,
+                null // İsteğe bağlı yönlendirme URL'si
+        );
 
         String message = isActive ? "Cüzdan başarıyla aktifleştirildi." : "Cüzdan başarıyla askıya alındı.";
         return new ResponseMessage(message, true);
@@ -476,6 +495,15 @@ public class WalletManager implements WalletService {
         wallet.getStatusLogs().add(log);
         walletRepository.save(wallet);
 
+        if (newStatus == WalletStatus.SUSPENDED) {
+            fcmService.sendNotificationToToken(
+                    targetUser,
+                    "Cüzdan Askıya Alındı",
+                    "Cüzdanınız sistem yöneticisi tarafından askıya alındı. Sebep: " + statusReason,
+                    NotificationType.ALERT,
+                    null
+            );
+        }
         return new ResponseMessage("Cüzdan durumu başarıyla " + newStatus.name() + " olarak güncellendi.", true);
     }
 
@@ -1007,10 +1035,10 @@ public class WalletManager implements WalletService {
         verificationRequest.setReviewedBy(securityUser.get());
         verificationRequest.setReviewedAt(LocalDateTime.now());
         verificationRequest.setAdminNote(request.getAdminNote());
+        UserIdentityInfo identityInfo = verificationRequest.getIdentityInfo();
+        User user = identityInfo.getUser();
 
         if (request.isApproved()) {
-            UserIdentityInfo identityInfo = verificationRequest.getIdentityInfo();
-            User user = identityInfo.getUser();
 
             boolean walletCreated = false;
             try {
@@ -1025,11 +1053,27 @@ public class WalletManager implements WalletService {
                 identityInfo.setApprovedAt(LocalDateTime.now());
                 identityInfo.setApprovedBy(securityUser.get());
                 userIdentityInfoRepository.save(identityInfo);
+
+                fcmService.sendNotificationToToken(
+                        user,
+                        "Kimlik Doğrulama Onayı",
+                        "Kimlik doğrulama başvurunuz onaylandı. Artık cüzdanınızı kullanabilirsiniz.",
+                        NotificationType.SUCCESS,
+                        null
+                );
             } else {
                 throw new RuntimeException("Kullanıcıya cüzdan oluşturulamadığı için başvuru onaylanamadı.");
             }
         } else {
             verificationRequest.setStatus(RequestStatus.REJECTED);
+
+            fcmService.sendNotificationToToken(
+                    user,
+                    "Kimlik Doğrulama Reddedildi",
+                    "Kimlik doğrulama başvurunuz reddedildi. Not: " + request.getAdminNote(),
+                    NotificationType.ALERT,
+                    null
+            );
         }
 
         identityVerificationRequestRepository.save(verificationRequest);
@@ -1172,7 +1216,13 @@ public class WalletManager implements WalletService {
         walletActivityRepository.save(activity);
 
         walletRepository.save(wallet);
-
+        fcmService.sendNotificationToToken(
+                user,
+                "Bakiye Yükleme Başarılı",
+                amount + " TL bakiyenize başarıyla yüklendi.",
+                NotificationType.SUCCESS,
+                null
+        );
         return new ResponseMessage("Yükleme başarılı.", true);
     }
 
