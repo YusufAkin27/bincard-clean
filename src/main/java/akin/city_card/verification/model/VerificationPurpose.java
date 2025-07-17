@@ -4,5 +4,5 @@ public enum VerificationPurpose {
     REGISTER,
     LOGIN,
     RESET_PASSWORD,
-    TWO_FACTOR
+    EMAIL_VERIFICATION, TWO_FACTOR
 }

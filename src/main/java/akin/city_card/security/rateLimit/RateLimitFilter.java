@@ -39,7 +39,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "/v1/api/user/password/verify-code",
             "/v1/api/user/password/forgot",
             "/v1/api/user/sign-up",
-            "/v1/api/user/verify/phone"
+            "/v1/api/user/verify/phone",
+            "/v1/api/user/email-verify"
     );
 
     @Override

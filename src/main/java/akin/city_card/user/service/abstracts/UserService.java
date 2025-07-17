@@ -19,6 +19,7 @@ import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
 import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
+import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
 import akin.city_card.wallet.core.response.WalletDTO;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import jakarta.validation.Valid;
@@ -35,7 +36,7 @@ public interface UserService {
 
     CacheUserDTO getProfile(String username) throws UserNotFoundException;
 
-    ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException;
+    ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException;
 
 
     ResponseMessage deactivateUser(String username) throws UserNotFoundException;
@@ -102,4 +103,6 @@ public interface UserService {
     ResponseMessage deleteProfilePhoto(String username) throws UserNotFoundException;
 
     void updateLocation(String username, @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException;
+
+    ResponseMessage verifyEmail(String token, String email) throws VerificationCodeNotFoundException, ExpiredVerificationCodeException, VerificationCodeStillValidException, UserNotFoundException;
 }

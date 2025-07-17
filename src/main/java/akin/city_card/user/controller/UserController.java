@@ -20,7 +20,7 @@ import akin.city_card.user.exceptions.*;
 import akin.city_card.user.service.abstracts.UserService;
 import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
 import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
-import akin.city_card.wallet.core.response.WalletDTO;
+import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
@@ -126,9 +126,19 @@ public class UserController {
     // 3. Profil güncelleme
     @PutMapping("/profile")
     public ResponseMessage updateProfile(@AuthenticationPrincipal UserDetails userDetails,
-                                         @RequestBody UpdateProfileRequest updateProfileRequest) throws UserNotFoundException {
+                                         @RequestBody UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException {
         return userService.updateProfile(userDetails.getUsername(), updateProfileRequest);
     }
+
+    @PostMapping("/email-verify/{token}")
+    public ResponseMessage verifyEmail(
+            @PathVariable("token") String token,
+            @RequestParam("email") String email
+    ) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCodeNotFoundException, ExpiredVerificationCodeException {
+        return userService.verifyEmail(token, email);
+    }
+
+
 
     //profil fotoğrafı yükleme
     @PutMapping("/profile/photo")
@@ -206,12 +216,12 @@ public class UserController {
                                               @PathVariable Long cardId) throws UserNotFoundException {
         return userService.removeFavoriteCard(userDetails.getUsername(), cardId);
     }
+
     @PostMapping("/location")
     public void updateLocation(@AuthenticationPrincipal UserDetails userDetails,
-                              @RequestBody @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException {
-        userService.updateLocation(userDetails.getUsername(),updateLocationRequest);
+                               @RequestBody @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException {
+        userService.updateLocation(userDetails.getUsername(), updateLocationRequest);
     }
-
 
 
     // BİLDİRİM TERCİHLERİ

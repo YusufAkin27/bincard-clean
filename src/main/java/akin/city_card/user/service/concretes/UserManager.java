@@ -27,6 +27,7 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.repository.RouteRepository;
+import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
@@ -49,6 +50,7 @@ import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
 import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
 import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
+import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
 import akin.city_card.verification.model.VerificationChannel;
 import akin.city_card.verification.model.VerificationCode;
 import akin.city_card.verification.model.VerificationPurpose;
@@ -70,6 +72,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -227,32 +231,104 @@ public class UserManager implements UserService {
 
     @Override
     @Transactional
-    public ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException {
+    public ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException {
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
 
         boolean isUpdated = false;
 
-        if (updateProfileRequest.getName() != null &&
+        if (updateProfileRequest.getName() != null && !updateProfileRequest.getName().isEmpty() &&
                 !updateProfileRequest.getName().equals(user.getProfileInfo().getName())) {
             user.getProfileInfo().setName(updateProfileRequest.getName());
             isUpdated = true;
         }
 
-        if (updateProfileRequest.getSurname() != null &&
+        if (updateProfileRequest.getSurname() != null && !updateProfileRequest.getSurname().isEmpty() &&
                 !updateProfileRequest.getSurname().equals(user.getProfileInfo().getSurname())) {
             user.getProfileInfo().setSurname(updateProfileRequest.getSurname());
             isUpdated = true;
         }
         if (updateProfileRequest.getEmail() != null && !updateProfileRequest.getEmail().isBlank()) {
-            user.getProfileInfo().setEmail(updateProfileRequest.getEmail().trim().toLowerCase());
-            isUpdated = true;
+            String newEmail = updateProfileRequest.getEmail().trim().toLowerCase();
+
+
+            boolean emailAlreadyInUse = securityUserRepository.existsByProfileInfoEmail(newEmail);
+            if (emailAlreadyInUse) {
+                throw new EmailAlreadyExistsException();
+            }
+
+            if (user.getProfileInfo() == null) {
+                user.setProfileInfo(new ProfileInfo());
+            }
+
+            String currentEmail = user.getProfileInfo().getEmail();
+
+            if (!newEmail.equalsIgnoreCase(currentEmail)) {
+                user.getProfileInfo().setEmail(newEmail);
+                user.setEmailVerified(false);
+
+                // Mevcut aktif email doğrulama kodlarını iptal et
+                verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.EMAIL_VERIFICATION);
+
+                // Yeni doğrulama kodu oluştur
+                String token = UUID.randomUUID().toString();
+                VerificationCode verificationCode = new VerificationCode();
+                verificationCode.setCode(token);
+                verificationCode.setCreatedAt(LocalDateTime.now());
+                verificationCode.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+                verificationCode.setUsed(false);
+                verificationCode.setCancelled(false);
+                verificationCode.setUser(user);
+                verificationCode.setPurpose(VerificationPurpose.EMAIL_VERIFICATION);
+                verificationCode.setChannel(VerificationChannel.EMAIL);
+                verificationCodeRepository.save(verificationCode);
+
+                // Doğrulama linki
+                String verificationLink = "http://localhost:8080/v1/api/user/email-verify/" + token
+                        + "?email=" + URLEncoder.encode(newEmail, StandardCharsets.UTF_8);
+                System.out.println(verificationLink);
+                // HTML içerikli e-posta
+                String fullName = (user.getProfileInfo().getName() != null ? user.getProfileInfo().getName() : "") + " "
+                        + (user.getProfileInfo().getSurname() != null ? user.getProfileInfo().getSurname() : "");
+                String htmlContent = """
+                        <html>
+                          <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 30px;">
+                            <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 20px; border-radius: 8px;">
+                              <h2 style="color: #333;">E-posta Adresinizi Doğrulayın</h2>
+                              <p>Merhaba <strong>%s</strong>,</p>
+                              <p>Yeni e-posta adresinizi doğrulamak için aşağıdaki butona tıklayın:</p>
+                              <div style="text-align: center; margin: 30px 0;">
+                                <a href="%s" style="background-color: #4CAF50; color: white; padding: 14px 25px; text-decoration: none; border-radius: 5px;">E-Postamı Doğrula</a>
+                              </div>
+                              <p>Bu bağlantı <strong>15 dakika</strong> boyunca geçerlidir.</p>
+                              <hr style="border: none; border-top: 1px solid #eee;">
+                              <p style="font-size: 12px; color: #888;">Bu mesajı siz istemediyseniz lütfen dikkate almayın.</p>
+                            </div>
+                          </body>
+                        </html>
+                        """.formatted(fullName.trim(), verificationLink);
+
+                // E-posta gönder
+                EmailMessage emailMessage = new EmailMessage();
+                emailMessage.setToEmail(newEmail);
+                emailMessage.setSubject("E-Posta Doğrulama");
+                emailMessage.setBody(htmlContent);
+                emailMessage.setHtml(true);
+                mailService.queueEmail(emailMessage);
+
+                System.out.println("Email verification link: " + verificationLink);
+
+                isUpdated = true;
+            }
+
+
         }
+
 
         if (isUpdated) {
             userRepository.save(user);
 
             // Bildirimi kaydet ve anlık gönder
-         fcmService.sendNotificationToToken(
+            fcmService.sendNotificationToToken(
                     user,
                     "Profil Güncelleme",
                     "Profil bilgileriniz başarıyla güncellendi.",
@@ -273,7 +349,7 @@ public class UserManager implements UserService {
         user.setStatus(UserStatus.INACTIVE);
         user.setDeleted(true);
         tokenRepository.deleteBySecurityUserId(user.getId());
-         fcmService.sendNotificationToToken(
+        fcmService.sendNotificationToToken(
                 user,
                 "Pasif oldunuz !",
                 "Hesabınız devre dışı bırakıldı. Tekrar giriş yapamazsınız.",
@@ -861,6 +937,57 @@ public class UserManager implements UserService {
         securityUserRepository.save(securityUser);
     }
 
+    @Override
+    @Transactional
+    public ResponseMessage verifyEmail(String token, String email) throws UserNotFoundException, VerificationCodeNotFoundException, ExpiredVerificationCodeException {
+        VerificationCode verificationCode = verificationCodeRepository
+                .findFirstByCodeAndUsedFalseAndCancelledFalseOrderByCreatedAtDesc(token)
+                .orElseThrow(VerificationCodeNotFoundException::new);
+
+        if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
+            verificationCode.setCancelled(true);
+            verificationCodeRepository.save(verificationCode);
+            throw new ExpiredVerificationCodeException();
+        }
+
+        if (verificationCode.getPurpose() != VerificationPurpose.EMAIL_VERIFICATION) {
+            throw new VerificationCodeNotFoundException();
+        }
+
+        SecurityUser securityUser = verificationCode.getUser();
+        if (!(securityUser instanceof User user) || user.getProfileInfo() == null) {
+            throw new UserNotFoundException();
+        }
+
+        String currentEmail = user.getProfileInfo().getEmail();
+        if (currentEmail == null || !currentEmail.equalsIgnoreCase(email)) {
+            throw new VerificationCodeNotFoundException();
+        }
+
+        // Doğrulama işlemi
+        user.setEmailVerified(true);
+        user.setStatus(UserStatus.ACTIVE); // Gerekliyse ACTIVE yap
+        userRepository.save(user);
+
+        verificationCode.setUsed(true);
+        verificationCode.setVerifiedAt(LocalDateTime.now());
+        verificationCodeRepository.save(verificationCode);
+
+        // Diğer tüm aktif kodları iptal et (bu amaç için)
+        verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.EMAIL_VERIFICATION);
+
+        // İsteğe bağlı: FCM bildirimi gönder
+        fcmService.sendNotificationToToken(
+                user,
+                "E-Posta Doğrulandı",
+                "E-posta adresiniz başarıyla doğrulandı.",
+                NotificationType.SUCCESS,
+                null
+        );
+
+        return new ResponseMessage("E-posta adresiniz başarıyla doğrulandı.", true);
+    }
+
 
     private String buildEmailBodyFromCacheDTO(CacheUserDTO dto) {
         StringBuilder sb = new StringBuilder();
@@ -873,11 +1000,10 @@ public class UserManager implements UserService {
 
         sb.append("──────────────────────────────\n");
         sb.append("Kullanıcı ID      : ").append(dto.getId()).append("\n");
-        sb.append("Kullanıcı No      : ").append(dto.getUserNumber() != null ? dto.getUserNumber() : "—").append("\n");
+        sb.append("Kullanıcı No      : ").append(dto.getTelephone() != null ? dto.getTelephone() : "—").append("\n");
         sb.append("Ad                : ").append(dto.getName() != null ? dto.getName() : "—").append("\n");
         sb.append("Soyad             : ").append(dto.getSurname() != null ? dto.getSurname() : "—").append("\n");
         sb.append("E-posta           : ").append(dto.getEmail() != null ? dto.getEmail() : "—").append("\n");
-        sb.append("Telefon           : ").append(dto.getPhoneNumber() != null ? dto.getPhoneNumber() : "—").append("\n");
         sb.append("TC Kimlik No      : ").append(dto.getNationalId() != null ? dto.getNationalId() : "—").append("\n");
         sb.append("Doğum Tarihi      : ").append(dto.getBirthDate() != null ? dto.getBirthDate() : "—").append("\n");
         sb.append("Cüzdan Aktif      : ").append(dto.isWalletActivated() ? "Evet" : "Hayır").append("\n");

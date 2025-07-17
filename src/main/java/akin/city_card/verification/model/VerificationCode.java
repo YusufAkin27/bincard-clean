@@ -19,7 +19,7 @@ public class VerificationCode {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 6)
+    @Column(nullable = false)
     private String code;
 
     @Column(nullable = false)
@@ -29,13 +29,13 @@ public class VerificationCode {
     private boolean cancelled = false; // 5 hatalı denemeden sonra true olacak
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private VerificationChannel channel; // EMAIL / SMS
 
     private LocalDateTime verifiedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 30)
     private VerificationPurpose purpose; // REGISTER, LOGIN, etc.
 
     @CreationTimestamp

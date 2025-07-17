@@ -1,34 +1,58 @@
 package akin.city_card.mail;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
 
+import java.util.concurrent.TimeUnit;
+
+@Component
+@RequiredArgsConstructor
 public class EmailQueue {
-    private final LinkedBlockingQueue<EmailMessage> queue = new LinkedBlockingQueue<>();
+
+    private static final String EMAIL_QUEUE_KEY = "emailQueue";
+
+    private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     public void enqueue(EmailMessage email) {
-        if (email != null) {
-            try {
-                queue.put(email); // E-posta kuyruğa eklenir; bu metod kuyruk doluysa bekler
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Hata durumunda iş parçacığını kes
-                System.out.println("E-posta kuyruğa eklenirken kesildi: " + e.getMessage());
-            }
+        try {
+            String json = objectMapper.writeValueAsString(email);
+            redisTemplate.opsForList().rightPush(EMAIL_QUEUE_KEY, json);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Email JSON serialize hatası", e);
         }
     }
 
-    public EmailMessage dequeue() throws InterruptedException {
-        return queue.take();
+    public String dequeue() {
+        try {
+            return redisTemplate.opsForList().leftPop(EMAIL_QUEUE_KEY);
+        } catch (Exception e) {
+            System.err.println("Redis'den dequeue sırasında hata: " + e.getMessage());
+            return null;
+        }
     }
 
     public boolean isEmpty() {
-        return queue.isEmpty();
+        Long size = redisTemplate.opsForList().size(EMAIL_QUEUE_KEY);
+        return size == null || size == 0;
     }
 
-    public int size() {
-        return queue.size();
+    public long size() {
+        Long size = redisTemplate.opsForList().size(EMAIL_QUEUE_KEY);
+        return size == null ? 0 : size;
     }
 
+    // Kuyruğu tamamen temizle
     public void clear() {
-        queue.clear();
+        try {
+            redisTemplate.delete(EMAIL_QUEUE_KEY);
+        } catch (Exception e) {
+            System.err.println("Redis kuyruk temizlenirken hata: " + e.getMessage());
+        }
     }
 }
+
+

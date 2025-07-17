@@ -17,13 +17,13 @@ import java.util.Set;
 @Builder
 public class CacheUserDTO implements Serializable {
 
-    @JsonView(Views.Public.class)
+    @JsonView(Views.Admin.class)
     private Long id;
 
     @JsonView(Views.Public.class)
-    private String userNumber;
+    private String telephone;
 
-    @JsonView(Views.Public.class)
+    @JsonView(Views.Admin.class)
     private boolean deleted;
 
     // ProfileInfo
@@ -39,18 +39,15 @@ public class CacheUserDTO implements Serializable {
     @JsonView(Views.Public.class)
     private String profilePicture;
 
-    @JsonView(Views.Public.class)
+    @JsonView(Views.Admin.class)
     private UserStatus status;
 
     // DeviceInfo
-    @JsonView(Views.User.class)
+    @JsonView(Views.Admin.class)
     private String fcmToken;
 
-    @JsonView(Views.User.class)
+    @JsonView(Views.Admin.class)
     private String deviceUuid;
-
-    @JsonView(Views.User.class)
-    private String phoneNumber;
 
     @JsonView(Views.User.class)
     private boolean phoneVerified;
@@ -92,6 +89,6 @@ public class CacheUserDTO implements Serializable {
     @JsonView(Views.User.class)
     private Integer notifyBeforeMinutes;
 
-    @JsonView(Views.User.class)
+    @JsonView(Views.Admin.class)
     private boolean fcmActive;
 }

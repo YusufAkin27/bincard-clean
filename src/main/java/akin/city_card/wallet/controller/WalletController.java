@@ -150,6 +150,7 @@ public class WalletController {
     public WalletDTO getMyWallet(@AuthenticationPrincipal UserDetails user) throws UserNotFoundException, WalletNotFoundException, WalletNotActiveException {
         return walletService.getMyWallet(user.getUsername());
     }
+
     //user
     @GetMapping("/transfers/outgoing")
     public DataResponseMessage<Page<WalletTransactionDTO>> getOutgoingTransfers(

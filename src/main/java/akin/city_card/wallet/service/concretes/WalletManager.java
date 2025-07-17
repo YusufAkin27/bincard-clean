@@ -112,7 +112,7 @@ public class WalletManager implements WalletService {
     @Override
     public ResponseMessage transfer(String senderPhone, WalletTransferRequest walletTransferRequest) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException {
         User sender = userRepository.findByUserNumber(PhoneNumberFormatter.normalizeTurkishPhoneNumber(senderPhone)).orElseThrow(UserNotFoundException::new);
-        ;
+
         User receiver = findReceiverByIdentifier(walletTransferRequest.getReceiverIdentifier());
         if (receiver == null) {
             throw new ReceiverNotFoundException();

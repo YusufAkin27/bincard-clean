@@ -72,7 +72,7 @@ public class UserConverterImpl implements UserConverter {
     public CacheUserDTO toCacheUserDTO(User user) {
         return CacheUserDTO.builder()
                 .id(user.getId())
-                .userNumber(user.getUserNumber())
+                .telephone(user.getUserNumber())
 
                 // Profile Info
                 .name(user.getProfileInfo() != null ? user.getProfileInfo().getName() : null)
@@ -84,7 +84,6 @@ public class UserConverterImpl implements UserConverter {
                 // Device Info
                 .fcmToken(user.getDeviceInfo() != null ? user.getDeviceInfo().getFcmToken() : null)
                 .deviceUuid(user.getDeviceInfo() != null ? user.getDeviceInfo().getDeviceUuid() : null)
-                .phoneNumber(user.getDeviceInfo() != null ? user.getDeviceInfo().getIpAddress() : null) // eğer farklı alan kullanıyorsan değiştir
 
                 .phoneVerified(user.isPhoneVerified())
                 .emailVerified(user.isEmailVerified())
@@ -145,6 +144,7 @@ public class UserConverterImpl implements UserConverter {
         ProfileInfo profileInfo = ProfileInfo.builder()
                 .name(request.getFirstName())
                 .surname(request.getLastName())
+                .profilePicture("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")
                 .build();
         DeviceInfo deviceInfo = DeviceInfo.builder()
                 .deviceUuid(request.getDeviceUuid())
