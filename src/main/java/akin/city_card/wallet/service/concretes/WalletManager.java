@@ -979,7 +979,7 @@ public class WalletManager implements WalletService {
             request.setPaymentGroup(PaymentGroup.PRODUCT.name());
 
 
-            String baseUrl = "https://5c21a050b43e.ngrok-free.app"; // Buraya ngrok ekranındaki HTTPS adresini yaz
+            String baseUrl = "http://192.168.174.214:8080"; // Buraya ngrok ekranındaki HTTPS adresini yaz
 
             request.setConversationId(conversationId);  // Burada conversationId kesinlikle set edilmeli
 

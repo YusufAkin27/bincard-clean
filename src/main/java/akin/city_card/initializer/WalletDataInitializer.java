@@ -1,4 +1,4 @@
-/*package akin.city_card.initializer;
+package akin.city_card.initializer;
 
 import akin.city_card.user.model.User;
 import akin.city_card.user.repository.UserRepository;
@@ -57,5 +57,3 @@ public class WalletDataInitializer implements ApplicationRunner {
     }
 }
 
-
- */

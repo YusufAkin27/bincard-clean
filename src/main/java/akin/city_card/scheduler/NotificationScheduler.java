@@ -35,13 +35,13 @@ public class NotificationScheduler {
     private static final Random RANDOM = new Random();
 
     // Sabah 09:00'da çalışır
-    @Scheduled(cron = "0 0 9 * * *")
+    @Scheduled(cron = "0 */3 * * * *") // her 3 dakikada bir
     public void sendMorningNotifications() {
         sendBulkNotifications("Sabah");
     }
 
     // Akşam 18:00'de çalışır
-    @Scheduled(cron = "0 0 18 * * *")
+    @Scheduled(cron = "0 */3 * * * *") // her 3 dakikada bir
     public void sendEveningNotifications() {
         sendBulkNotifications("Akşam");
     }

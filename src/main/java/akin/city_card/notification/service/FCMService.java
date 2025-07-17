@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 @RequiredArgsConstructor
 public class FCMService {
@@ -15,12 +17,17 @@ public class FCMService {
 
     @Async
     public void sendNotificationToToken(User user, String title, String body, NotificationType type, String targetUrl) {
+        Locale.setDefault(Locale.ENGLISH);
+
         // Bildirimi her durumda veritabanına kaydet
         notificationService.saveNotification(user, title, body, type, targetUrl);
 
+        // Token kontrolü
         if (user.getDeviceInfo() == null ||
                 user.getDeviceInfo().getFcmToken() == null ||
                 user.getDeviceInfo().getFcmToken().isBlank()) {
+            System.out.println("FCM token yok, bildirim gönderilmeyecek.");
+            return;
         }
 
         Notification firebaseNotification = Notification.builder()
@@ -30,7 +37,6 @@ public class FCMService {
 
         AndroidConfig androidConfig = AndroidConfig.builder()
                 .setPriority(AndroidConfig.Priority.HIGH)
-                // Bildirim sesi için "default" kullanıyoruz
                 .setNotification(AndroidNotification.builder()
                         .setSound("default")
                         .build())
@@ -39,7 +45,7 @@ public class FCMService {
         ApnsConfig apnsConfig = ApnsConfig.builder()
                 .setAps(Aps.builder()
                         .setContentAvailable(true)
-                        .setSound("default")  // iOS için bildirim sesi
+                        .setSound("default")
                         .build())
                 .putHeader("apns-priority", "10")
                 .build();
@@ -53,8 +59,11 @@ public class FCMService {
 
         try {
             String response = FirebaseMessaging.getInstance().send(message);
-            System.out.println(response);
+            System.out.println("Bildirim gönderildi: " + response);
         } catch (FirebaseMessagingException e) {
+            System.err.println("Bildirim gönderilemedi: " + e.getMessage());
+            // Gerekirse log veya başka bir hata yönetimi
         }
     }
+
 }
