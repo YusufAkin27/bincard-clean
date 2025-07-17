@@ -103,6 +103,7 @@ public class UserManager implements UserService {
     private final TokenRepository tokenRepository;
 
 
+
     @Override
     @Transactional
     public ResponseMessage create(CreateUserRequest request) throws VerificationCodeStillValidException {
@@ -375,7 +376,8 @@ public class UserManager implements UserService {
     public ResponseMessage updateProfilePhoto(String username, MultipartFile file)
             throws PhotoSizeLargerException, IOException, UserNotFoundException {
 
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
 
         try {
             String imageUrl = mediaUploadService.uploadAndOptimizeMedia(file);
