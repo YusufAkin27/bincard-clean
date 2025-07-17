@@ -7,7 +7,7 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.dto.*;
 import akin.city_card.security.exception.*;
 import akin.city_card.security.manager.AuthService;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
+import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -41,7 +41,7 @@ public class AuthController {
     }
 
     @PostMapping("/phone-verify")
-    public TokenResponseDTO phoneVerify(HttpServletRequest httpServletRequest,@RequestBody LoginPhoneVerifyCodeRequest phoneVerifyCode) throws ExpiredVerificationCodeException, CancelledVerificationCodeException, UsedVerificationCodeException, InvalidVerificationCodeException {
+    public TokenResponseDTO phoneVerify(HttpServletRequest httpServletRequest,@RequestBody LoginPhoneVerifyCodeRequest phoneVerifyCode) throws VerificationCodeExpiredException, CancelledVerificationCodeException, UsedVerificationCodeException, InvalidVerificationCodeException {
         return authService.phoneVerify(phoneVerifyCode,httpServletRequest);
     }
 

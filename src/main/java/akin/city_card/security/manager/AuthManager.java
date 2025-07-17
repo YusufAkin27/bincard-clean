@@ -16,7 +16,6 @@ import akin.city_card.security.exception.*;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.security.repository.TokenRepository;
 import akin.city_card.security.service.JwtService;
-import akin.city_card.sms.SmsRequest;
 import akin.city_card.sms.SmsService;
 import akin.city_card.superadmin.model.SuperAdmin;
 import akin.city_card.superadmin.repository.SuperAdminRepository;
@@ -26,7 +25,7 @@ import akin.city_card.user.model.UserStatus;
 import akin.city_card.user.repository.LoginHistoryRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.concretes.PhoneNumberFormatter;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
+import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import akin.city_card.verification.model.VerificationChannel;
 import akin.city_card.verification.model.VerificationCode;
 import akin.city_card.verification.model.VerificationPurpose;
@@ -79,7 +78,7 @@ public class AuthManager implements AuthService {
     @Transactional
     public TokenResponseDTO phoneVerify(LoginPhoneVerifyCodeRequest phoneVerifyCode, HttpServletRequest httpServletRequest)
             throws InvalidVerificationCodeException,
-            ExpiredVerificationCodeException,
+            VerificationCodeExpiredException,
             UsedVerificationCodeException,
             CancelledVerificationCodeException {
 
@@ -99,7 +98,7 @@ public class AuthManager implements AuthService {
         }
 
         if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new ExpiredVerificationCodeException();
+            throw new VerificationCodeExpiredException();
         }
 
         verificationCode.setUsed(true);

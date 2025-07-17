@@ -10,6 +10,7 @@ import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
+import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.exception.VerificationCodeStillValidException;
@@ -18,9 +19,7 @@ import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.user.service.abstracts.UserService;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
-import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
-import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
+import akin.city_card.verification.exceptions.*;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,7 +83,7 @@ public class UserController {
     // ✅ Adım 2: Telefon numarasını doğrulama (kod girilerek)
     @PostMapping("/password/verify-code")
     public ResponseMessage verifyResetCode(@Valid @RequestBody VerificationCodeRequest verificationCodeRequest)
-            throws UserNotFoundException, ExpiredVerificationCodeException, InvalidOrUsedVerificationCodeException {
+            throws UserNotFoundException, VerificationCodeExpiredException, InvalidOrUsedVerificationCodeException {
         return userService.verifyPhoneForPasswordReset(verificationCodeRequest);
     }
 
@@ -134,7 +133,7 @@ public class UserController {
     public ResponseMessage verifyEmail(
             @PathVariable("token") String token,
             @RequestParam("email") String email
-    ) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCodeNotFoundException, ExpiredVerificationCodeException {
+    ) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeAlreadyUsedException, EmailMismatchException, VerificationCodeTypeMismatchException, VerificationCodeCancelledException, InvalidVerificationCodeException {
         return userService.verifyEmail(token, email);
     }
 

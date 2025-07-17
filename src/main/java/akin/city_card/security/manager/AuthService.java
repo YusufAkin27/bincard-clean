@@ -8,9 +8,8 @@ import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.dto.*;
 import akin.city_card.security.exception.*;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
+import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.ResponseEntity;
 
 public interface AuthService {
 
@@ -21,7 +20,7 @@ public interface AuthService {
 
     ResponseMessage logout(String username) throws UserNotFoundException, TokenNotFoundException;
 
-    TokenResponseDTO phoneVerify(LoginPhoneVerifyCodeRequest phoneVerifyCode,HttpServletRequest httpServletRequest) throws ExpiredVerificationCodeException, InvalidVerificationCodeException, UsedVerificationCodeException, CancelledVerificationCodeException;
+    TokenResponseDTO phoneVerify(LoginPhoneVerifyCodeRequest phoneVerifyCode,HttpServletRequest httpServletRequest) throws VerificationCodeExpiredException, InvalidVerificationCodeException, UsedVerificationCodeException, CancelledVerificationCodeException;
 
     ResponseMessage adminLogin(LoginRequestDTO loginRequestDTO, HttpServletRequest request) throws NotFoundUserException, IncorrectPasswordException, UserRoleNotAssignedException, UserDeletedException, AdminNotApprovedException, UserNotActiveException, AdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
 

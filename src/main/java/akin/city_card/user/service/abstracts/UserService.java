@@ -10,6 +10,7 @@ import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
+import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.exception.VerificationCodeStillValidException;
@@ -17,9 +18,7 @@ import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
-import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
-import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
+import akin.city_card.verification.exceptions.*;
 import akin.city_card.wallet.core.response.WalletDTO;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import jakarta.validation.Valid;
@@ -57,7 +56,7 @@ public interface UserService {
 
     ResponseMessage resendPhoneVerificationCode(ResendPhoneVerificationRequest request) throws UserNotFoundException;
 
-    ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, ExpiredVerificationCodeException;
+    ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, VerificationCodeExpiredException;
 
     boolean updateFCMToken(String fcmToken, String username) throws UserNotFoundException;
 
@@ -104,5 +103,5 @@ public interface UserService {
 
     void updateLocation(String username, @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException;
 
-    ResponseMessage verifyEmail(String token, String email) throws VerificationCodeNotFoundException, ExpiredVerificationCodeException, VerificationCodeStillValidException, UserNotFoundException;
+    ResponseMessage verifyEmail(String token, String email) throws VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeStillValidException, UserNotFoundException, VerificationCodeAlreadyUsedException, VerificationCodeCancelledException, VerificationCodeTypeMismatchException, EmailMismatchException, InvalidVerificationCodeException;
 }

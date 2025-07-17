@@ -29,6 +29,7 @@ import akin.city_card.route.model.Route;
 import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.exception.VerificationCodeStillValidException;
@@ -48,9 +49,7 @@ import akin.city_card.user.repository.AutoTopUpConfigRepository;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
-import akin.city_card.verification.exceptions.ExpiredVerificationCodeException;
-import akin.city_card.verification.exceptions.InvalidOrUsedVerificationCodeException;
-import akin.city_card.verification.exceptions.VerificationCodeNotFoundException;
+import akin.city_card.verification.exceptions.*;
 import akin.city_card.verification.model.VerificationChannel;
 import akin.city_card.verification.model.VerificationCode;
 import akin.city_card.verification.model.VerificationPurpose;
@@ -559,7 +558,7 @@ public class UserManager implements UserService {
 
     @Override
     @Transactional
-    public ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, ExpiredVerificationCodeException {
+    public ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, VerificationCodeExpiredException {
         String code = verificationCodeRequest.getCode();
 
         VerificationCode verificationCode = verificationCodeRepository
@@ -567,7 +566,7 @@ public class UserManager implements UserService {
                 .orElseThrow(InvalidOrUsedVerificationCodeException::new);
 
         if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new ExpiredVerificationCodeException();
+            throw new VerificationCodeExpiredException();
         }
 
         SecurityUser user = verificationCode.getUser();
@@ -939,44 +938,55 @@ public class UserManager implements UserService {
 
     @Override
     @Transactional
-    public ResponseMessage verifyEmail(String token, String email) throws UserNotFoundException, VerificationCodeNotFoundException, ExpiredVerificationCodeException {
-        VerificationCode verificationCode = verificationCodeRepository
-                .findFirstByCodeAndUsedFalseAndCancelledFalseOrderByCreatedAtDesc(token)
-                .orElseThrow(VerificationCodeNotFoundException::new);
+    public ResponseMessage verifyEmail(String token, String email)
+            throws VerificationCodeExpiredException,
+            VerificationCodeAlreadyUsedException, VerificationCodeCancelledException,
+            VerificationCodeTypeMismatchException, UserNotFoundException,
+            EmailMismatchException, InvalidVerificationCodeException {
 
-        if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
-            verificationCode.setCancelled(true);
-            verificationCodeRepository.save(verificationCode);
-            throw new ExpiredVerificationCodeException();
+        VerificationCode code = verificationCodeRepository
+                .findFirstByCodeOrderByCreatedAtDesc(token)
+                .orElseThrow(InvalidVerificationCodeException::new);
+
+        if (code.isUsed()) {
+            throw new VerificationCodeAlreadyUsedException();
         }
 
-        if (verificationCode.getPurpose() != VerificationPurpose.EMAIL_VERIFICATION) {
-            throw new VerificationCodeNotFoundException();
+        if (code.isCancelled()) {
+            throw new VerificationCodeCancelledException();
         }
 
-        SecurityUser securityUser = verificationCode.getUser();
+        if (code.getExpiresAt().isBefore(LocalDateTime.now())) {
+            code.setCancelled(true);
+            verificationCodeRepository.save(code);
+            throw new VerificationCodeExpiredException();
+        }
+
+        if (code.getPurpose() != VerificationPurpose.EMAIL_VERIFICATION) {
+            throw new VerificationCodeTypeMismatchException();
+        }
+
+        SecurityUser securityUser = code.getUser();
         if (!(securityUser instanceof User user) || user.getProfileInfo() == null) {
             throw new UserNotFoundException();
         }
 
         String currentEmail = user.getProfileInfo().getEmail();
         if (currentEmail == null || !currentEmail.equalsIgnoreCase(email)) {
-            throw new VerificationCodeNotFoundException();
+            throw new EmailMismatchException();
         }
 
         // Doğrulama işlemi
         user.setEmailVerified(true);
-        user.setStatus(UserStatus.ACTIVE); // Gerekliyse ACTIVE yap
+        user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
-        verificationCode.setUsed(true);
-        verificationCode.setVerifiedAt(LocalDateTime.now());
-        verificationCodeRepository.save(verificationCode);
+        code.setUsed(true);
+        code.setVerifiedAt(LocalDateTime.now());
+        verificationCodeRepository.save(code);
 
-        // Diğer tüm aktif kodları iptal et (bu amaç için)
         verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.EMAIL_VERIFICATION);
 
-        // İsteğe bağlı: FCM bildirimi gönder
         fcmService.sendNotificationToToken(
                 user,
                 "E-Posta Doğrulandı",
