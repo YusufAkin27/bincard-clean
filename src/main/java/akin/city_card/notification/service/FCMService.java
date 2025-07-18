@@ -19,10 +19,8 @@ public class FCMService {
     public void sendNotificationToToken(User user, String title, String body, NotificationType type, String targetUrl) {
         Locale.setDefault(Locale.ENGLISH);
 
-        // Bildirimi her durumda veritabanına kaydet
         notificationService.saveNotification(user, title, body, type, targetUrl);
 
-        // Token kontrolü
         if (user.getDeviceInfo() == null ||
                 user.getDeviceInfo().getFcmToken() == null ||
                 user.getDeviceInfo().getFcmToken().isBlank()) {
@@ -62,7 +60,6 @@ public class FCMService {
             System.out.println("Bildirim gönderildi: " + response);
         } catch (FirebaseMessagingException e) {
             System.err.println("Bildirim gönderilemedi: " + e.getMessage());
-            // Gerekirse log veya başka bir hata yönetimi
         }
     }
 
