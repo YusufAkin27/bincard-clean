@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 public interface WalletService {
-    ResponseMessage transfer(String senderPhone,@Valid WalletTransferRequest walletTransfer) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException;
+    ResponseMessage transfer(String senderPhone,@Valid WalletTransferRequest walletTransfer) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException, NameAndSurnameAreWrongException;
     ResponseMessage toggleWalletStatus(String phone, boolean isActive) throws WalletNotActiveException, WalletNotFoundException, UserNotFoundException, WalletDeactivationException;
     ResponseMessage createWallet(@Valid String phone, CreateWalletRequest createWalletRequest) throws UserNotFoundException, OnlyPhotosAndVideosException, PhotoSizeLargerException, IOException, VideoSizeLargerException, FileFormatCouldNotException;
 
@@ -84,5 +84,6 @@ public interface WalletService {
 
     Page<WalletTransactionDTO> getIncomingTransfers(Long id, int page, int size);
 
+    String getWibanToName(String wiban)  ;
 }
 

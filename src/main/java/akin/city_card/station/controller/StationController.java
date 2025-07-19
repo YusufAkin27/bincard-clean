@@ -1,9 +1,11 @@
 package akin.city_card.station.controller;
 
+import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.bus.core.response.StationDTO;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.station.core.request.CreateStationRequest;
+import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
 import akin.city_card.station.service.abstracts.StationService;
 import lombok.RequiredArgsConstructor;
@@ -21,22 +23,22 @@ public class StationController {
     private final StationService stationService;
 
     @GetMapping
-    public DataResponseMessage<List<StationDTO>> getAllStations(@AuthenticationPrincipal UserDetails  userDetails) {
-        return stationService.getAllStations(userDetails.getUsername());
+    public DataResponseMessage<List<StationDTO>> getAllStations(@RequestParam double latitude, @RequestParam double longitude) {
+        return stationService.getAllStations(latitude,longitude);
     }
 
     @GetMapping("/{id}")
-    public DataResponseMessage<StationDTO> getStationById(@AuthenticationPrincipal UserDetails userDetails,@PathVariable Long id) {
-        return stationService.getStationById(userDetails.getUsername(),id);
+    public DataResponseMessage<StationDTO> getStationById(@PathVariable Long id) {
+        return stationService.getStationById(id);
     }
 
     @GetMapping("/search")
-    public DataResponseMessage<List<StationDTO>> searchStations(@AuthenticationPrincipal UserDetails userDetails,@RequestParam String name) {
-        return stationService.searchStationsByName(userDetails.getUsername(),name);
+    public DataResponseMessage<List<StationDTO>> searchStations(@RequestParam String name) {
+        return stationService.searchStationsByName(name);
     }
 
     @PostMapping
-    public DataResponseMessage<StationDTO> createStation(@AuthenticationPrincipal UserDetails userDetails,@RequestBody CreateStationRequest request) {
+    public DataResponseMessage<StationDTO> createStation(@AuthenticationPrincipal UserDetails userDetails,@RequestBody CreateStationRequest request) throws AdminNotFoundException {
         return stationService.createStation(userDetails,request);
     }
 
@@ -54,4 +56,9 @@ public class StationController {
     public ResponseMessage deleteStation(@AuthenticationPrincipal UserDetails userDetails,@PathVariable Long id) {
        return stationService.deleteStation(id,userDetails.getUsername());
     }
+    @PostMapping("/search/nearby")
+    public DataResponseMessage<List<StationDTO>> searchNearbyStations(@RequestBody SearchStationRequest request) {
+        return stationService.searchNearbyStations(request);
+    }
+
 }

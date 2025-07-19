@@ -13,6 +13,9 @@ public class WalletTransferRequest {
     @NotBlank(message = "Alıcı telefon boş olamaz")
     private String receiverIdentifier;
 
+    @NotBlank(message = "Alıcı Ad Soyad boş olamaz")
+    private String receiverNameAndSurname;
+
     @NotNull(message = "Transfer miktarı zorunludur.")
     @DecimalMin(value = "0.01", inclusive = true, message = "Transfer miktarı en az 0.01 olmalıdır.")
     private BigDecimal amount;

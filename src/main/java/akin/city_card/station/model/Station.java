@@ -1,8 +1,12 @@
 package akin.city_card.station.model;
 
+import akin.city_card.admin.model.Admin;
+import akin.city_card.paymentPoint.model.Address;
+import akin.city_card.paymentPoint.model.Location;
 import jakarta.persistence.*;
-
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Data
@@ -18,11 +22,37 @@ public class Station {
     @Column(nullable = false, length = 100)
     private String name;
 
-    private double latitude;   // Enlem
-    private double longitude;  // Boylam
+    @Embedded
+    private Location location;
+
+    @Embedded
+    private Address address;
 
     private boolean active = true;
+    private boolean deleted = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
+    private Admin createdBy;
+
+    @Column(name = "created_date", updatable = false)
+    private LocalDateTime createdDate;
+
+    @Column(name = "updated_date")
+    private LocalDateTime updatedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private StationType type;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdDate = LocalDateTime.now();
+        this.updatedDate = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedDate = LocalDateTime.now();
+    }
 }
-
-

@@ -94,8 +94,8 @@ public class WalletManager implements WalletService {
         }
 
         if (identifier.startsWith("WBN-")) {
-            Wallet wallet = walletRepository.findByWiban(identifier);
-            return wallet != null ? wallet.getUser() : null;
+            Optional<Wallet> wallet = walletRepository.findByWiban(identifier);
+            return wallet.isPresent() ? wallet.get().getUser() : null;
         }
 
         if (identifier.contains("@")) {
@@ -108,9 +108,14 @@ public class WalletManager implements WalletService {
 
         return null;
     }
+    private String normalizeName(String input) {
+        if (input == null) return "";
+
+        return input.replaceAll("[^\\p{L}]", "").toLowerCase();
+    }
 
     @Override
-    public ResponseMessage transfer(String senderPhone, WalletTransferRequest walletTransferRequest) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException {
+    public ResponseMessage transfer(String senderPhone, WalletTransferRequest walletTransferRequest) throws UserNotFoundException, ReceiverNotFoundException, WalletNotFoundException, ReceiverWalletNotFoundException, WalletNotActiveException, ReceiverWalletNotActiveException, InsufficientFundsException, NameAndSurnameAreWrongException {
         User sender = userRepository.findByUserNumber(PhoneNumberFormatter.normalizeTurkishPhoneNumber(senderPhone)).orElseThrow(UserNotFoundException::new);
 
         User receiver = findReceiverByIdentifier(walletTransferRequest.getReceiverIdentifier());
@@ -138,6 +143,21 @@ public class WalletManager implements WalletService {
         if (senderWallet.getBalance().compareTo(transferAmount) < 0) {
             throw new InsufficientFundsException();
         }
+        // ✅ Alıcının adı soyadı kontrolü
+        String providedFullName = normalizeName(walletTransferRequest.getReceiverNameAndSurname());
+        String actualFullName;
+
+        if (receiver.getProfileInfo() != null) {
+            actualFullName = normalizeName(receiver.getProfileInfo().getName() + receiver.getProfileInfo().getSurname());
+        } else {
+            actualFullName = "";
+        }
+
+        if (!actualFullName.equals(providedFullName)) {
+            throw new NameAndSurnameAreWrongException();
+        }
+
+
 
         WalletTransfer walletTransfer = new WalletTransfer();
         walletTransfer.setAmount(transferAmount);
@@ -226,6 +246,70 @@ public class WalletManager implements WalletService {
 
         return new ResponseMessage(msg, true);
     }
+
+    @Override
+    public String getWibanToName(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return "";
+        }
+
+        Optional<User> user = Optional.empty();
+        String cleanedInput = input.trim();
+
+        // WIBAN ile arama
+        if (cleanedInput.startsWith("WBN-")) {
+            Optional<Wallet> wallet = walletRepository.findByWiban(cleanedInput);
+            if (wallet.isPresent() && wallet.get().getUser() != null) {
+                user = Optional.of(wallet.get().getUser());
+            }
+        }
+
+        // Telefon numarası ile arama
+        else if (PhoneNumberFormatter.PhoneValid(cleanedInput)) {
+            String normalizedPhone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(cleanedInput);
+            user = userRepository.findByUserNumber(normalizedPhone);
+        }
+
+        // TC Kimlik numarası ile arama
+        else if (cleanedInput.matches("^\\d{11}$")) {
+            user = Optional.ofNullable(userRepository.findByIdentityInfo_NationalId(cleanedInput));
+        }
+
+        // E-posta ile arama
+        else if (cleanedInput.contains("@")) {
+            user = Optional.ofNullable(userRepository.findByProfileInfo_Email(cleanedInput));
+        }
+
+        if (user.isEmpty() || user.get() == null) {
+            return "";
+        }
+
+        User foundUser = user.get();
+        String name = null;
+        String surname = null;
+
+        if (foundUser.getProfileInfo() != null) {
+            name = foundUser.getProfileInfo().getName();
+            surname = foundUser.getProfileInfo().getSurname();
+        }
+
+        // İsim ve soyisim maskelenmiş döndürülür
+        String maskedName = maskNameAndSurname(name, surname);
+        return maskedName;
+    }
+
+    private String maskNameAndSurname(String name, String surname) {
+        String namePart = (name != null && name.length() >= 2)
+                ? name.substring(0, 2) + "*".repeat(name.length() - 2)
+                : (name != null ? name : "");
+
+        String surnamePart = (surname != null && surname.length() >= 2)
+                ? surname.substring(0, 2) + "*".repeat(surname.length() - 2)
+                : (surname != null ? surname : "");
+
+        return (namePart + " " + surnamePart).trim();
+    }
+
 
 
     @Override
@@ -1181,6 +1265,8 @@ public class WalletManager implements WalletService {
 
         return incomingTransfers.map(walletConverter::convertToTransactionDTO);
     }
+
+
 
 
     @Transactional

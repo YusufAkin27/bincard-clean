@@ -91,8 +91,14 @@ public class WalletController {
     @PostMapping("/transfer")
     public ResponseMessage transfer(
             @AuthenticationPrincipal UserDetails sender,
-            @RequestBody @Valid WalletTransferRequest walletTransferRequest) throws UserNotFoundException, ReceiverWalletNotFoundException, ReceiverNotFoundException, WalletNotFoundException, InsufficientFundsException, ReceiverWalletNotActiveException, WalletNotActiveException {
+            @RequestBody @Valid WalletTransferRequest walletTransferRequest) throws UserNotFoundException, ReceiverWalletNotFoundException, ReceiverNotFoundException, WalletNotFoundException, InsufficientFundsException, ReceiverWalletNotActiveException, WalletNotActiveException, NameAndSurnameAreWrongException {
         return walletService.transfer(sender.getUsername(), walletTransferRequest);
+    }
+
+    @GetMapping("/name")
+    public ResponseEntity<String> getWibanToName(@RequestParam("input") String input)   {
+        String maskedName = walletService.getWibanToName(input);
+        return ResponseEntity.ok(maskedName);
     }
 
     //user
