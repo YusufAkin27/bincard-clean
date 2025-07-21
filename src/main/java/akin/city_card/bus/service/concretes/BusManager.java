@@ -107,7 +107,7 @@ public class BusManager implements BusService {
         Bus bus = busConverter.fromCreateBusRequest(request);
 
         Route route = routeRepository.findById(request.getRouteId())
-                .orElseThrow(() -> new RouteNotFoundException(request.getRouteId()));
+                .orElseThrow(RouteNotFoundException::new);
         bus.setRoute(route);
 
         Driver driver = driverRepository.findById(request.getDriverId())
@@ -146,7 +146,7 @@ public class BusManager implements BusService {
 
         if (request.getRouteId() != null) {
             Route route = routeRepository.findById(request.getRouteId())
-                    .orElseThrow(() -> new RouteNotFoundException(request.getRouteId()));
+                    .orElseThrow(RouteNotFoundException::new);
             bus.setRoute(route);
         }
 
@@ -334,8 +334,8 @@ public class BusManager implements BusService {
         if (lastRide != null) {
             long minutes = Duration.between(lastRide.getBoardingTime(), now).toMinutes();
 
-            boolean sameStation = lastRide.getBus().getRoute().getStations().get(0)
-                    .equals(bus.getRoute().getStations().get(0));
+            boolean sameStation = lastRide.getBus().getRoute().getStartStation()
+                    .equals(bus.getRoute().getStartStation());
 
             if (minutes <= 60 && !sameStation) {
                 isTransfer = true;
@@ -343,18 +343,15 @@ public class BusManager implements BusService {
             }
         }
 
-        // 6. Bakiye kontrolü
         if (card.getBalance().compareTo(BigDecimal.valueOf(fare)) < 0) {
             throw new InsufficientBalanceException();
         }
 
-        // 7. Bakiyeyi düş
         card.setBalance(card.getBalance().subtract(BigDecimal.valueOf(fare)));
         busCardRepository.save(card);
 
 
 
-        // 8. Yeni biniş kaydı oluştur
         BusRide ride = new BusRide();
         ride.setBus(bus);
         ride.setBusCard(card);

@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class RouteNotFoundException extends BusinessException {
 
-    public RouteNotFoundException(Long id) {
-        super(id+"id li rota bulunamadı");
+    public RouteNotFoundException( ) {
+        super("Rota bulunmadı");
     }
 }

@@ -873,13 +873,13 @@ public class UserManager implements UserService {
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
         Optional<Route> route = routeRepository.findById(alertRequest.getRouteId());
         if (route.isEmpty()) {
-            throw new RouteNotFoundException(route.get().getId());
+            throw new RouteNotFoundException();
         }
         Optional<Station> station = stationRepository.findById(alertRequest.getStationId());
         if (station.isEmpty()) {
             throw new StationNotFoundException();
         }
-        if (!route.get().getStations().contains(station.get())) {
+        if (!route.get().getStationNodes().isEmpty() && !route.get().getStationNodes().contains(station.get())){
             throw new RouteNotFoundStationException();
         }
         GeoAlert geoAlert = new GeoAlert();

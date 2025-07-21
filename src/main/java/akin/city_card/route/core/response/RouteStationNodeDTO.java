@@ -1,0 +1,35 @@
+package akin.city_card.route.core.response;
+
+import akin.city_card.bus.core.response.StationDTO;
+import akin.city_card.route.model.Direction;
+import com.fasterxml.jackson.annotation.JsonView;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import akin.city_card.user.core.response.Views;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class RouteStationNodeDTO {
+
+    @JsonView(Views.User.class)
+    private Long id;
+
+    @JsonView(Views.User.class)
+    private StationDTO fromStation;
+
+    @JsonView(Views.User.class)
+    private StationDTO toStation;
+
+    @JsonView(Views.User.class)
+    private int sequenceOrder;
+
+    @JsonView(Views.User.class)
+    private Direction direction;
+
+    @JsonView(Views.User.class)
+    private RouteScheduleDTO schedule;
+}
