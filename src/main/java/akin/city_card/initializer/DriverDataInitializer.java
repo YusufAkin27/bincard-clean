@@ -11,6 +11,7 @@ import akin.city_card.user.model.UserStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ import java.util.stream.IntStream;
 
 @Component
 @RequiredArgsConstructor
+@Order(2)
 public class DriverDataInitializer implements ApplicationRunner {
 
     private final DriverRepository driverRepository;
@@ -30,13 +32,15 @@ public class DriverDataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (driverRepository.count() == 0) {
-            List<Driver> drivers = IntStream.range(1, 11).mapToObj(this::createDriver).toList();
+            List<Driver> drivers = IntStream.of(100).mapToObj(this::createDriver).toList();
             driverRepository.saveAll(drivers);
-            System.out.println(">> 10 sürücü eklendi.");
+            System.out.println(">> 100 sürücü eklendi.");
         }
     }
 
     private Driver createDriver(int i) {
+        int safeDay = (i % 28) + 1;
+
         return Driver.builder()
                 .userNumber(generatePhoneNumber(i))
                 .password(passwordEncoder.encode("123456"))
@@ -54,13 +58,14 @@ public class DriverDataInitializer implements ApplicationRunner {
                         .ipAddress("10.10.0." + i)
                         .build())
                 .nationalId(generateNationalId(i))
-                .dateOfBirth(LocalDate.of(1985, 1, i))
-                .licenseIssueDate(LocalDate.of(2010, 1, i))
+                .dateOfBirth(LocalDate.of(1985, 1, safeDay))
+                .licenseIssueDate(LocalDate.of(2010, 1, safeDay))
                 .licenseClass("D")
                 .address("Sürücü Mah. No: " + i)
-                .shift(i % 2 == 0 ? Shift.DAYTIME: Shift.NIGHT)
+                .shift(i % 2 == 0 ? Shift.DAYTIME : Shift.NIGHT)
                 .build();
     }
+
     private String generateNationalId(int i) {
         return String.format("12345678%03d", i); // 12345678001 → 11 karakter
     }
