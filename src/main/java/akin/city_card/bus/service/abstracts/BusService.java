@@ -35,19 +35,16 @@ public interface BusService {
 
     ResponseMessage assignDriver(Long busId, Long driverId, String username) throws AdminNotFoundException, BusNotFoundException, DriverNotFoundException, DriverAlreadyAssignedException;
 
-    DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId, String username) throws UserNotFoundException, BusNotFoundException;
 
     ResponseMessage updateLocation(Long busId, UpdateLocationRequest request) throws UnauthorizedLocationUpdateException, BusNotFoundException;
 
     DataResponseMessage<List<BusLocationDTO>> getLocationHistory(Long busId, LocalDate date, String username) throws UnauthorizedAccessException, BusNotFoundException;
-
-    ResponseMessage rideWithCard(Long busId, Long cardId, CardType cardType, String username) throws BusNotFoundException, CardNotFoundException, UnauthorizedCardUsageException, InsufficientBalanceException;
-
-    DataResponseMessage<List<BusRideDTO>> getBusRides(Long busId, String username);
 
     ResponseMessage assignRoute(Long busId, Long routeId, String username);
 
     DataResponseMessage<List<StationDTO>> getRouteStations(Long busId, String username);
 
     DataResponseMessage<Double> getEstimatedArrivalTime(Long busId, Long stationId, String username);
+
+    DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId) throws BusNotFoundException;
 }

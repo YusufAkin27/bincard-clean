@@ -36,6 +36,7 @@ public class TopUpBalanceRequest {
             message = "CVC kodu 3 veya 4 haneli olmalıdır."
     )
     private String cardCvc;
+    @NotNull(message = "Platform tipi zorunludur.")
     private PlatformType platformType;
 
 }

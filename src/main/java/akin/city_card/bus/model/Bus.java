@@ -3,12 +3,13 @@ package akin.city_card.bus.model;
 import akin.city_card.buscard.model.CardType;
 import akin.city_card.driver.model.Driver;
 import akin.city_card.route.model.Route;
+import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.station.model.Station;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,30 +24,62 @@ public class Bus {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String numberPlate;  // Otobüs plakası, benzersiz
+    private String numberPlate;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    private Route route; // Otobüsün rotası
+    private Route route;
 
     @OneToOne(optional = false, fetch = FetchType.LAZY)
-    private Driver driver; // Otobüsün şoförü
+    private Driver driver;
 
     @Column(nullable = false)
-    private boolean active = true; // Otobüsün aktifliği
+    private boolean active = true;
 
     @Column(nullable = false)
-    private double fare; // Tam bilet fiyatı
+    private double fare;
 
-    // --- Anlık konum bilgileri ---
-    private double currentLatitude;  // Son bilinen enlem
-    private double currentLongitude; // Son bilinen boylam
-    private LocalDateTime lastLocationUpdate; // Son konum güncelleme zamanı
+    @Column(nullable = false)
+    private boolean deleted=false;
 
-    private LocalDateTime createdAt;  // Kayıt oluşturulma zamanı
-    private LocalDateTime updatedAt;  // Kayıt son güncellenme zamanı
+    @Enumerated(EnumType.STRING)
+    private BusStatus status = BusStatus.CALISIYOR;
+
+    private int capacity;
+
+    private int currentPassengerCount;
+    private LocalDateTime deleteTime;
+
+    // Son bilinen konum bilgisi
+    private double currentLatitude;
+    private double currentLongitude;
+    private LocalDateTime lastLocationUpdate;
+
+    private Double lastKnownSpeed; // KM/saat
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Station lastSeenStation;
+
+    private String lastSeenStationName;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private SecurityUser createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private SecurityUser updatedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private SecurityUser deletedBy;
 
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL)
-    private List<BusRide> rides;  // Bu otobüse ait biniş kayıtları
+    private List<BusRide> rides;
+
+    @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL)
+    private List<BusLocation> locationHistory;
 
     @PrePersist
     protected void onCreate() {
@@ -58,9 +91,6 @@ public class Bus {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Kart tipine göre ücret hesaplama fonksiyonu.
-     */
     public double calculateFare(CardType cardType) {
         switch (cardType) {
             case ÖĞRENCİ: return fare * 0.5;
@@ -75,4 +105,3 @@ public class Bus {
         }
     }
 }
-

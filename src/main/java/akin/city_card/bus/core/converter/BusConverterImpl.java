@@ -22,17 +22,48 @@ public class BusConverterImpl implements BusConverter {
     @Override
     public BusDTO toBusDTO(Bus bus) {
         if (bus == null) return null;
+
         BusDTO dto = new BusDTO();
         dto.setId(bus.getId());
         dto.setNumberPlate(bus.getNumberPlate());
-        dto.setDriverName(bus.getDriver() != null ? bus.getDriver().getProfileInfo().getName()+bus.getDriver().getProfileInfo().getSurname() : null);
-        dto.setRouteName(bus.getRoute() != null ? bus.getRoute().getName() : null);
+
+        if (bus.getDriver() != null && bus.getDriver().getProfileInfo() != null) {
+            String name = bus.getDriver().getProfileInfo().getName();
+            String surname = bus.getDriver().getProfileInfo().getSurname();
+            dto.setDriverName(name + " " + surname);
+        }
+
+        if (bus.getRoute() != null) {
+            dto.setRouteName(bus.getRoute().getName());
+        }
+
         dto.setActive(bus.isActive());
         dto.setFare(bus.getFare());
         dto.setCurrentLatitude(bus.getCurrentLatitude());
         dto.setCurrentLongitude(bus.getCurrentLongitude());
+
+        dto.setLastLocationUpdate(bus.getLastLocationUpdate());
+
+        dto.setStatus(bus.getStatus());
+
+        if (bus.getRoute() != null && bus.getRoute().getEndStation() != null) {
+            dto.setLastSeenStationName(bus.getRoute().getEndStation().getName());
+        }
+
+        dto.setCreatedAt(bus.getCreatedAt());
+        dto.setUpdatedAt(bus.getUpdatedAt());
+
+        if (bus.getCreatedBy() != null) {
+            dto.setCreatedByUsername(bus.getCreatedBy().getUsername());
+        }
+
+        if (bus.getUpdatedBy() != null) {
+            dto.setUpdatedByUsername(bus.getUpdatedBy().getUsername());
+        }
+
         return dto;
     }
+
 
     @Override
     public List<BusDTO> toBusDTOList(List<Bus> buses) {

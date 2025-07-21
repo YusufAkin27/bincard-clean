@@ -4,6 +4,7 @@ import akin.city_card.bus.exceptions.UnauthorizedAccessException;
 import akin.city_card.cloudinary.MediaUploadService;
 import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
+import akin.city_card.news.model.PlatformType;
 import akin.city_card.notification.model.NotificationType;
 import akin.city_card.notification.service.FCMService;
 import akin.city_card.response.DataResponseMessage;
@@ -1063,12 +1064,20 @@ public class WalletManager implements WalletService {
             request.setPaymentGroup(PaymentGroup.PRODUCT.name());
 
 
-            String baseUrl = "http://192.168.174.214:8080"; // Buraya ngrok ekranındaki HTTPS adresini yaz
+            String baseUrl;
+            System.out.println(topUpBalanceRequest.getPlatformType());
+            if (topUpBalanceRequest.getPlatformType() == PlatformType.MOBILE) {
+                baseUrl = "http://192.168.174.214:8080";
+            } else if (topUpBalanceRequest.getPlatformType() == PlatformType.WEB) {
+                baseUrl = "http://localhost:8080";
+            } else {
+                baseUrl = "http://localhost:8080";
+            }
 
-            request.setConversationId(conversationId);  // Burada conversationId kesinlikle set edilmeli
-
-            // Diğer request ayarları
             request.setCallbackUrl(baseUrl + "/v1/api/wallet/payment/3d-callback");
+
+            request.setConversationId(conversationId);
+
             request.setPaymentCard(paymentCard);
             request.setBuyer(buyer);
             request.setShippingAddress(address);

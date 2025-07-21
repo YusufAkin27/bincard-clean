@@ -9,19 +9,15 @@ import akin.city_card.bus.core.request.CreateBusRequest;
 import akin.city_card.bus.core.request.UpdateBusRequest;
 import akin.city_card.bus.core.response.BusDTO;
 import akin.city_card.bus.core.response.BusLocationDTO;
-import akin.city_card.bus.core.response.BusRideDTO;
 import akin.city_card.bus.core.response.StationDTO;
 import akin.city_card.bus.exceptions.*;
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.model.BusLocation;
-import akin.city_card.bus.model.BusRide;
-import akin.city_card.bus.model.RideStatus;
+import akin.city_card.bus.model.BusStatus;
 import akin.city_card.bus.repository.BusLocationRepository;
 import akin.city_card.bus.repository.BusRepository;
 import akin.city_card.bus.repository.BusRideRepository;
 import akin.city_card.bus.service.abstracts.BusService;
-import akin.city_card.buscard.model.BusCard;
-import akin.city_card.buscard.model.CardType;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.driver.model.Driver;
 import akin.city_card.driver.repository.DriverRepository;
@@ -40,8 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 
-import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -59,8 +53,8 @@ public class BusManager implements BusService {
     private final BusRepository busRepository;
     private final UserRepository userRepository;
     private final BusLocationRepository busLocationRepository;
-    private  final BusCardRepository busCardRepository;
-    private final BusRideRepository   busRideRepository;
+    private final BusCardRepository busCardRepository;
+    private final BusRideRepository busRideRepository;
 
 
     @Override
@@ -89,19 +83,28 @@ public class BusManager implements BusService {
 
     @Override
     public DataResponseMessage<List<BusDTO>> getActiveBuses(String username) {
-        return null;
+        return new DataResponseMessage<>("otobüsler ", true, busRepository.findAll().stream().filter(Bus::isActive).map(busConverter::toBusDTO).toList());
     }
 
     @Override
-    public ResponseMessage createBus(CreateBusRequest request, String username) throws AdminNotFoundException, DuplicateBusPlateException, RouteNotFoundException, DriverNotFoundException {
+    @Transactional
+    public ResponseMessage createBus(CreateBusRequest request, String username)
+            throws AdminNotFoundException, DuplicateBusPlateException,
+            RouteNotFoundException, DriverNotFoundException {
+
         Admin admin = adminRepository.findByUserNumber(username);
         SuperAdmin superAdmin = superAdminRepository.findByUserNumber(username);
+
         if (admin == null && superAdmin == null) {
             throw new AdminNotFoundException();
         }
 
         if (busRepository.existsByNumberPlate(request.getNumberPlate())) {
             throw new DuplicateBusPlateException();
+        }
+
+        if (request.getFare() < 0) {
+            return new ResponseMessage("Ücret sıfırdan küçük olamaz.", false);
         }
 
         Bus bus = busConverter.fromCreateBusRequest(request);
@@ -114,6 +117,26 @@ public class BusManager implements BusService {
                 .orElseThrow(() -> new DriverNotFoundException(request.getDriverId()));
         bus.setDriver(driver);
 
+        // İlk konum varsayılan
+        bus.setCurrentLatitude(0.0);
+        bus.setCurrentLongitude(0.0);
+        bus.setLastLocationUpdate(null);
+
+        // Durum ve zaman
+        bus.setCreatedAt(LocalDateTime.now());
+        bus.setUpdatedAt(LocalDateTime.now());
+        bus.setActive(true);
+        bus.setStatus(BusStatus.CALISIYOR); // Enum: BEKLEMEDE, CALISIYOR, ARIZALI gibi
+
+        // Kim oluşturdu
+        if (admin != null) {
+            bus.setCreatedBy(admin);
+            bus.setUpdatedBy(admin);
+        } else {
+            bus.setCreatedBy(superAdmin);
+            bus.setUpdatedBy(superAdmin);
+        }
+
         busRepository.save(bus);
 
         return new ResponseMessage("Otobüs başarıyla oluşturuldu.", true);
@@ -121,9 +144,14 @@ public class BusManager implements BusService {
 
 
     @Override
-    public ResponseMessage updateBus(Long busId, UpdateBusRequest request, String username) throws AdminNotFoundException, DuplicateBusPlateException, DriverNotFoundException, RouteNotFoundException, BusNotFoundException {
+    @Transactional
+    public ResponseMessage updateBus(Long busId, UpdateBusRequest request, String username)
+            throws AdminNotFoundException, DuplicateBusPlateException,
+            DriverNotFoundException, RouteNotFoundException, BusNotFoundException {
+
         Admin admin = adminRepository.findByUserNumber(username);
         SuperAdmin superAdmin = superAdminRepository.findByUserNumber(username);
+
         if (admin == null && superAdmin == null) {
             throw new AdminNotFoundException();
         }
@@ -131,32 +159,57 @@ public class BusManager implements BusService {
         Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusNotFoundException(busId));
 
-        if (!bus.getNumberPlate().equals(request.getNumberPlate()) &&
-                busRepository.existsByNumberPlate(request.getNumberPlate())) {
+        // Plaka değişmişse ve yeni plaka zaten varsa, hata fırlat
+        if (!bus.getNumberPlate().equals(request.getNumberPlate())
+                && busRepository.existsByNumberPlate(request.getNumberPlate())) {
             throw new DuplicateBusPlateException();
         }
+        if (request.getStatus()!=null && request.getStatus() != bus.getStatus()) {
+            bus.setStatus(request.getStatus());
+        }
+        // Temel alanların güncellenmesi (plaka, aktiflik, ücret)
+        bus.setNumberPlate(request.getNumberPlate());
+        bus.setActive(request.isActive());
 
-        busConverter.updateBusFromRequest(bus, request);
+        if (request.getFare() < 0) {
+            return new ResponseMessage("Ücret değeri sıfırdan küçük olamaz.", false);
+        }
+        bus.setFare(request.getFare());
 
+        // Şoför güncellemesi
         if (request.getDriverId() != null) {
             Driver driver = driverRepository.findById(request.getDriverId())
                     .orElseThrow(() -> new DriverNotFoundException(request.getDriverId()));
             bus.setDriver(driver);
         }
 
+        // Rota güncellemesi
         if (request.getRouteId() != null) {
             Route route = routeRepository.findById(request.getRouteId())
                     .orElseThrow(RouteNotFoundException::new);
             bus.setRoute(route);
         }
 
+        // Zaman & güncelleyen kullanıcı bilgisi
+        bus.setUpdatedAt(LocalDateTime.now());
+
+        if (admin != null) {
+            bus.setUpdatedBy(admin);
+        } else {
+            bus.setUpdatedBy(superAdmin);
+        }
+
         busRepository.save(bus);
+
         return new ResponseMessage("Otobüs başarıyla güncellendi.", true);
     }
 
 
+
     @Override
+    @Transactional
     public ResponseMessage deleteBus(Long busId, String username) throws AdminNotFoundException, BusNotFoundException {
+
         Admin admin = adminRepository.findByUserNumber(username);
         SuperAdmin superAdmin = superAdminRepository.findByUserNumber(username);
         if (admin == null && superAdmin == null) {
@@ -170,7 +223,10 @@ public class BusManager implements BusService {
             return new ResponseMessage("Otobüs zaten pasif durumda.", false);
         }
 
+        bus.setDeletedBy(admin);
+        bus.setDeleteTime(LocalDateTime.now());
         bus.setActive(false);
+        bus.setDeleted(true);
         busRepository.save(bus);
 
         return new ResponseMessage("Otobüs başarıyla pasif hale getirildi.", true);
@@ -178,6 +234,7 @@ public class BusManager implements BusService {
 
 
     @Override
+    @Transactional
     public ResponseMessage toggleBusActive(Long busId, String username) throws AdminNotFoundException, BusNotFoundException {
         Admin admin = adminRepository.findByUserNumber(username);
         SuperAdmin superAdmin = superAdminRepository.findByUserNumber(username);
@@ -199,6 +256,7 @@ public class BusManager implements BusService {
     }
 
     @Override
+    @Transactional
     public ResponseMessage assignDriver(Long busId, Long driverId, String username) throws AdminNotFoundException, BusNotFoundException, DriverNotFoundException, DriverAlreadyAssignedException {
         Admin admin = adminRepository.findByUserNumber(username);
         SuperAdmin superAdmin = superAdminRepository.findByUserNumber(username);
@@ -223,25 +281,6 @@ public class BusManager implements BusService {
     }
 
 
-    @Override
-    public DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId, String username) throws UserNotFoundException, BusNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-
-
-        Bus bus = busRepository.findById(busId)
-                .orElseThrow(() -> new BusNotFoundException(busId));
-
-        BusLocation currentLocation = busLocationRepository.findTopByBusOrderByTimestampDesc(bus)
-                .orElse(null);
-
-        if (currentLocation == null) {
-            return new DataResponseMessage<>("Otobüs için konum bilgisi bulunamadı.", false, null);
-        }
-
-        BusLocationDTO dto = busConverter.toBusLocationDTO(currentLocation);
-
-        return new DataResponseMessage<>("Otobüsün güncel konumu getirildi.", true, dto);
-    }
 
 
     @Override
@@ -309,79 +348,9 @@ public class BusManager implements BusService {
                 .map(busConverter::toBusLocationDTO)
                 .toList();
 
-        return new DataResponseMessage<>( "Konum geçmişi başarıyla getirildi.", true,dtos);
+        return new DataResponseMessage<>("Konum geçmişi başarıyla getirildi.", true, dtos);
     }
 
-
-    @Override
-    @Transactional
-    public ResponseMessage rideWithCard(Long busId, Long cardId, CardType cardType, String username) throws BusNotFoundException, CardNotFoundException, UnauthorizedCardUsageException, InsufficientBalanceException {
-        Bus bus = busRepository.findById(busId)
-                .orElseThrow(() -> new BusNotFoundException(busId));
-
-        BusCard card = busCardRepository.findById(cardId)
-                .orElseThrow(() -> new CardNotFoundException(cardId));
-
-        if (!card.isActive() || !card.getUser().getUserNumber().equals(username)) {
-            throw new UnauthorizedCardUsageException();
-        }
-        double fare = bus.calculateFare(cardType);
-
-        LocalDateTime now = LocalDateTime.now();
-        BusRide lastRide = busRideRepository.findTopByBusCardOrderByBoardingTimeDesc(card);
-
-        boolean isTransfer = false;
-        if (lastRide != null) {
-            long minutes = Duration.between(lastRide.getBoardingTime(), now).toMinutes();
-
-            boolean sameStation = lastRide.getBus().getRoute().getStartStation()
-                    .equals(bus.getRoute().getStartStation());
-
-            if (minutes <= 60 && !sameStation) {
-                isTransfer = true;
-                fare = 0.0;
-            }
-        }
-
-        if (card.getBalance().compareTo(BigDecimal.valueOf(fare)) < 0) {
-            throw new InsufficientBalanceException();
-        }
-
-        card.setBalance(card.getBalance().subtract(BigDecimal.valueOf(fare)));
-        busCardRepository.save(card);
-
-
-
-        BusRide ride = new BusRide();
-        ride.setBus(bus);
-        ride.setBusCard(card);
-        ride.setBoardingTime(now);
-        ride.setFareCharged(BigDecimal.valueOf(fare));
-        ride.setStatus(RideStatus.SUCCESS);
-        busRideRepository.save(ride);
-
-        return new ResponseMessage( isTransfer ? "Aktarma ile biniş başarılı." : "Biniş başarılı.",true);
-    }
-
-    @Override
-    public DataResponseMessage<List<BusRideDTO>> getBusRides(Long busId, String username) {
-       /*
-        Bus bus = busRepository.findById(busId).orElseThrow(BusNotFoundException::new);
-
-        // İstersen burada username ile yetki kontrolü yapabilirsin (örneğin admin veya bus yetkilisi mi)
-
-        List<BusRide> rides = busRideRepository.findByBusId(busId);
-        List<BusRideDTO> rideDTOs = rides.stream()
-                .map(busConverter::toBusRideDTO)
-                .toList();
-
-        return DataResponseMessage.<List<BusRideDTO>>builder()
-                .data(rideDTOs)
-                .build();
-
-        */
-        return null;
-    }
 
     @Override
     public ResponseMessage assignRoute(Long busId, Long routeId, String username) {
@@ -447,5 +416,22 @@ public class BusManager implements BusService {
          */
         return null;
     }
+
+    @Override
+    public DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId) throws BusNotFoundException {
+
+        Bus bus = busRepository.findById(busId)
+                .orElseThrow(() -> new BusNotFoundException(busId));
+
+        BusLocation currentLocation = busLocationRepository.findTopByBusOrderByTimestampDesc(bus)
+                .orElse(null);
+
+        if (currentLocation == null) {
+            return new DataResponseMessage<>("Otobüs için konum bilgisi bulunamadı.", false, null);
+        }
+
+        BusLocationDTO dto = busConverter.toBusLocationDTO(currentLocation);
+
+        return new DataResponseMessage<>("Otobüsün güncel konumu getirildi.", true, dto);    }
 
 }

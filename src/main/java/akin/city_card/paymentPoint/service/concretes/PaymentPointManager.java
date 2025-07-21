@@ -130,7 +130,6 @@ public class PaymentPointManager implements PaymentPointService {
         try {
             akin.city_card.location.model.Location lastLocation;
 
-            // 1. Kullanıcı adı geçerliyse kullanıcıyı ve son konumunu getir
             if (username != null && !username.isBlank()) {
                 Optional<SecurityUser> optionalUser = securityUserRepository.findByUserNumber(username);
                 if (optionalUser.isPresent()) {
@@ -155,7 +154,6 @@ public class PaymentPointManager implements PaymentPointService {
 
             // 3. Aktif ve (varsa) yakın olan ödeme noktalarını filtrele
             List<PaymentPointDTO> filteredList = paymentPoints.getContent().stream()
-                    .filter(PaymentPoint::isActive)
                     .filter(pp -> {
                         // Kullanıcının konumu yoksa tüm aktifleri döndür
                         if (lastLocation == null) return true;

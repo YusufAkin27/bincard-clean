@@ -91,9 +91,12 @@ public class PaymentPointController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "name") String sort) {
+            @RequestParam(defaultValue = "name") String sort) throws UnauthorizedAreaException {
         String username = userDetails != null ? userDetails.getUsername() : null;
         Pageable pageable = PageRequest.of(page, size, Sort.by(sort));
+       if (!isAdminOrSuperAdmin(userDetails)){
+           throw new UnauthorizedAreaException();
+       }
         return paymentPointService.getAll(username, pageable);
     }
 

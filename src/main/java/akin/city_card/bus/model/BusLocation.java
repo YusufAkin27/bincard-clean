@@ -1,8 +1,7 @@
 package akin.city_card.bus.model;
 
-import akin.city_card.bus.model.Bus;
-import akin.city_card.driver.model.Driver;
-import akin.city_card.route.model.Route;
+import akin.city_card.route.model.Direction;
+import akin.city_card.station.model.Station;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -30,6 +29,18 @@ public class BusLocation {
 
     @Column(nullable = false)
     private LocalDateTime timestamp;
+
+    private Double speed; // KM/saat
+
+    private Double accuracy; // GPS doğruluğu (metre)
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Station closestStation;
+
+    private Double distanceToClosestStation;
+
+    @Enumerated(EnumType.STRING)
+    private Direction direction;
 
     @PrePersist
     protected void onCreate() {
