@@ -22,4 +22,8 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
             "WHERE (rsn.fromStation.id = :stationId OR rsn.toStation.id = :stationId) " +
             "AND b.active = true AND b.deleted = false")
     List<Bus> findBusesByStationId(Long stationId);
+
+    List<Bus> findByActiveAndDeleted(boolean active, boolean delete);
+
+    List<Bus> findByActiveTrueAndDeletedFalse();
 }

@@ -32,7 +32,7 @@ public class DriverDataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (driverRepository.count() == 0) {
-            List<Driver> drivers = IntStream.of(100).mapToObj(this::createDriver).toList();
+            List<Driver> drivers = IntStream.range(0, 100).mapToObj(this::createDriver).toList();
             driverRepository.saveAll(drivers);
             System.out.println(">> 100 sürücü eklendi.");
         }

@@ -284,7 +284,9 @@ public class BusManager implements BusService {
 
 
     @Override
+    @Transactional
     public ResponseMessage updateLocation(Long busId, UpdateLocationRequest request) throws UnauthorizedLocationUpdateException, BusNotFoundException {
+      /*
         String requestIp = RequestContextHolder.currentRequestAttributes()
                 .getAttribute("CLIENT_IP", RequestAttributes.SCOPE_REQUEST)
                 .toString();
@@ -294,6 +296,8 @@ public class BusManager implements BusService {
             throw new UnauthorizedLocationUpdateException(requestIp);
         }
 
+
+       */
         if (request.getLatitude() == null || request.getLongitude() == null
                 || request.getLatitude() < -90 || request.getLatitude() > 90
                 || request.getLongitude() < -180 || request.getLongitude() > 180) {

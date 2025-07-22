@@ -64,7 +64,10 @@ public class SecurityConfig {
                 "/v1/api/wallet/name/**",
 
                 // ✅ Haber görüntüleme uçları - HERKESE AÇIK
-                "/v1/api/news/**"
+                "/v1/api/news/**",
+                "/v1/api/tracking/**",
+                "/v1/api/simulation/**",
+                "/v1/api/bus/**"
         };
 
 

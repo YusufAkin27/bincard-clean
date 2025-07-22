@@ -39,27 +39,30 @@ public class BusTrackingService {
      */
     public List<BusArrivalInfo> calculateBusArrivals(Long stationId, Long routeId) {
         log.info("Calculating bus arrivals for station: {} and route: {}", stationId, routeId);
-        
-        // Rotaya ait aktif araçları getir
+
+        // 1. Rotaya ait aktif araçları getir
         List<Bus> activeBuses = busRepository.findByRouteIdAndActiveTrue(routeId);
-        
-        List<BusArrivalInfo> arrivalInfos = new ArrayList<>();
-        
-        for (Bus bus : activeBuses) {
-            try {
-                BusArrivalInfo arrivalInfo = calculateSingleBusArrival(bus, stationId);
-                if (arrivalInfo != null) {
-                    arrivalInfos.add(arrivalInfo);
-                }
-            } catch (Exception e) {
-                log.error("Error calculating arrival for bus: {}", bus.getNumberPlate(), e);
-            }
+        if (activeBuses.isEmpty()) {
+            log.warn("No active buses found for routeId: {}", routeId);
+            return List.of(); // boş liste dön
         }
-        
-        // Varış sürelerine göre sırala
-        return arrivalInfos.stream()
+
+        // 2. Her araç için tahmini varış süresi hesapla
+        List<BusArrivalInfo> arrivalInfos = activeBuses.stream()
+                .map(bus -> {
+                    try {
+                        return calculateSingleBusArrival(bus, stationId);
+                    } catch (Exception e) {
+                        log.error("Error calculating arrival for bus: {}", bus.getNumberPlate(), e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(BusArrivalInfo::getEstimatedArrivalMinutes))
-                .collect(Collectors.toList());
+                .toList();
+
+        log.info("Calculated arrival info for {} buses", arrivalInfos.size());
+        return arrivalInfos;
     }
 
     /**
@@ -67,22 +70,22 @@ public class BusTrackingService {
      */
     public List<BusArrivalInfo> calculateAllBusArrivalsForStation(Long stationId) {
         log.info("Calculating all bus arrivals for station: {}", stationId);
-        
+
         // Bu durağa gelen tüm rotaları bul
         List<RouteStationNode> stationNodes = routeStationNodeRepository
                 .findByFromStationIdOrToStationId(stationId, stationId);
-        
+
         Set<Route> routes = stationNodes.stream()
                 .map(RouteStationNode::getRoute)
                 .collect(Collectors.toSet());
-        
+
         List<BusArrivalInfo> allArrivals = new ArrayList<>();
-        
+
         for (Route route : routes) {
             List<BusArrivalInfo> routeArrivals = calculateBusArrivals(stationId, route.getId());
             allArrivals.addAll(routeArrivals);
         }
-        
+
         // Varış sürelerine göre sırala
         return allArrivals.stream()
                 .sorted(Comparator.comparing(BusArrivalInfo::getEstimatedArrivalMinutes))
@@ -107,18 +110,27 @@ public class BusTrackingService {
             return null;
         }
 
-        // Toplam seyahat süresini hesapla
+        // Toplam tahmini varış süresini hesapla
         int totalMinutes = calculateTotalTravelTime(lastLocation, pathToStation);
-        
+
+        // Hedef durağın adı
+        String targetStationName = pathToStation.get(pathToStation.size() - 1).getToStation().getName();
+
+        // Kullanıcıya yönelik açıklama metni
+        String arrivalText = String.format(
+                "%s plakalı otobüs %s sonra %s durağına varacaktır",
+                bus.getNumberPlate(),
+                totalMinutes <= 0 ? "yakında" : totalMinutes + " dakika",
+                targetStationName
+        );
+
         return BusArrivalInfo.builder()
-                .bus(bus)
-                .targetStationId(targetStationId)
+                .plate(bus.getNumberPlate())
+                .arrivalText(arrivalText)
                 .estimatedArrivalMinutes(totalMinutes)
-                .lastKnownLocation(lastLocation)
-                .currentDirection(lastLocation.getDirection())
-                .pathStations(pathToStation.stream()
-                        .map(node -> node.getToStation().getName())
-                        .collect(Collectors.toList()))
+                .arrivingSoon(totalMinutes <= 2)
+                .delayed(false) // Gecikme tespiti gerekiyorsa burası güncellenmeli
+                .delayReason(null)
                 .calculatedAt(LocalDateTime.now())
                 .build();
     }
