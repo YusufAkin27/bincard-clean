@@ -122,32 +122,39 @@ public class BusSimulatorTask implements Runnable {
     }
 
     private void updateProgress(Station from, Station to) {
-        // Calculate distance between stations
-        double distance = haversine(
+        double distanceKm = haversine(
                 from.getLocation().getLatitude(), from.getLocation().getLongitude(),
                 to.getLocation().getLatitude(), to.getLocation().getLongitude()
         );
 
-        // Apply speed variation
-        double currentSpeed = speedKmh * (1.0 + (random.nextGaussian() * SPEED_VARIATION));
-        currentSpeed = Math.max(currentSpeed, speedKmh * 0.3); // Minimum 30% of base speed
+        if (distanceKm < 0.01) {
+            currentProgress = 1.0;
+            moveToNextNode();
+            return;
+        }
 
-        // Calculate progress increment
-        double progressIncrement = (currentSpeed * updateIntervalSeconds) / (distance * 3600.0);
+        double currentSpeedKmh = speedKmh * (1.0 + (random.nextGaussian() * SPEED_VARIATION));
+        currentSpeedKmh = Math.max(currentSpeedKmh, speedKmh * 0.3); // min %30
+
+        double speedMps = currentSpeedKmh * 1000.0 / 3600.0; // m/s
+
+        double distanceMeters = distanceKm * 1000.0;
+
+        double traveledMeters = speedMps * updateIntervalSeconds;
+
+        double progressIncrement = traveledMeters / distanceMeters;
         currentProgress += progressIncrement;
 
-        // Check if we've reached the destination station
         if (currentProgress >= 1.0) {
             currentProgress = 0.0;
             moveToNextNode();
         }
     }
 
+
     private void moveToNextNode() {
-        // Simple circular movement through nodes
         currentNodeIndex = (currentNodeIndex + 1) % routeNodes.size();
 
-        // Change direction at route ends (if implementing bidirectional routes)
         if (currentNodeIndex == 0) {
             currentDirection = (currentDirection == Direction.GIDIS) ? Direction.DONUS : Direction.GIDIS;
         }

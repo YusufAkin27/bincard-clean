@@ -18,16 +18,16 @@ import java.util.List;
 @Builder
 public class RouteDTO {
 
-    @JsonView(Views.Public.class)
+    @JsonView(Views.Admin.class)
     private Long id;
 
     @JsonView(Views.Public.class)
     private String name;
 
-    @JsonView(Views.User.class)
+    @JsonView(Views.Admin.class)
     private LocalDateTime createdAt;
 
-    @JsonView(Views.User.class)
+    @JsonView(Views.Admin.class)
     private LocalDateTime updatedAt;
 
     @JsonView(Views.SuperAdmin.class)

@@ -49,7 +49,6 @@ public class RouteConverterImpl implements RouteConverter {
                 .toStation(stationConverter.convertToDTO(node.getToStation()))
                 .sequenceOrder(node.getSequenceOrder())
                 .direction(node.getDirection())
-                .schedule(toScheduleDTO(node.getSchedule()))
                 .build();
     }
 

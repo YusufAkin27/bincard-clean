@@ -210,10 +210,12 @@ public class RouteManager implements RouteService {
     @Override
     public DataResponseMessage<List<RouteDTO>> getAllRoutes() {
         List<RouteDTO> routeDTOs = routeRepository.findAll().stream()
-                .filter(route -> route.isActive() && !route.isDeleted())
                 .map(routeConverter::toRouteDTO)
                 .toList();
 
+        for (RouteDTO dto : routeDTOs) {
+            System.out.println(dto.getName());
+        }
         return new DataResponseMessage<>("rotalar", true, routeDTOs);
     }
 

@@ -26,14 +26,14 @@ public class RouteController {
 
     private final RouteService routeService;
 
-    @JsonView(Views.Public.class)
     @GetMapping("/getAllRoutes")
+   // @JsonView(Views.User.class)
     public DataResponseMessage<List<RouteDTO>> getAllRoutes() {
         return routeService.getAllRoutes();
     }
 
-    @JsonView(Views.Public.class)
     @GetMapping("/{id}")
+    @JsonView(Views.Public.class)
     public DataResponseMessage<RouteDTO> getRouteById(@PathVariable Long id) throws RouteNotFoundException {
         return routeService.getRouteById(id);
     }

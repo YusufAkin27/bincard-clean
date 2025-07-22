@@ -115,14 +115,11 @@ public class BusSimulationService {
                 return;
             }
 
-            // Force initialize all necessary lazy properties
             nodes.forEach(node -> {
                 if (node.getFromStation() != null && node.getFromStation().getLocation() != null) {
-                    // Access to initialize
                     node.getFromStation().getLocation().getLatitude();
                 }
                 if (node.getToStation() != null && node.getToStation().getLocation() != null) {
-                    // Access to initialize
                     node.getToStation().getLocation().getLatitude();
                 }
             });

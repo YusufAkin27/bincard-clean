@@ -64,7 +64,7 @@ public class BusManager implements BusService {
         if (admin == null && superAdmin == null) {
             throw new AdminNotFoundException();
         }
-        List<Bus> buses = new ArrayList<>();
+        List<Bus> buses =busRepository.findAll();
         return new DataResponseMessage<>("başarılı", true, buses.stream().map(busConverter::toBusDTO).collect(Collectors.toList()));
     }
 

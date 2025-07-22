@@ -30,6 +30,5 @@ public class RouteStationNodeDTO {
     @JsonView(Views.User.class)
     private Direction direction;
 
-    @JsonView(Views.User.class)
-    private RouteScheduleDTO schedule;
+
 }
