@@ -3,6 +3,7 @@ package akin.city_card.station.model;
 import akin.city_card.admin.model.Admin;
 import akin.city_card.paymentPoint.model.Address;
 import akin.city_card.paymentPoint.model.Location;
+import akin.city_card.security.entity.SecurityUser;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,7 +34,7 @@ public class Station {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id")
-    private Admin createdBy;
+    private SecurityUser createdBy;
 
     @Column(name = "created_date", updatable = false)
     private LocalDateTime createdDate;

@@ -1,8 +1,9 @@
 package akin.city_card.station.service.concretes;
 
 import akin.city_card.admin.exceptions.AdminNotFoundException;
-import akin.city_card.admin.model.Admin;
 import akin.city_card.bus.core.response.StationDTO;
+import akin.city_card.news.core.response.PageDTO;
+import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.paymentPoint.model.Address;
 import akin.city_card.paymentPoint.model.Location;
 import akin.city_card.response.DataResponseMessage;
@@ -12,17 +13,22 @@ import akin.city_card.station.core.converter.StationConverter;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
+import akin.city_card.station.exceptions.StationNotActiveException;
+import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.Station;
+import akin.city_card.station.model.StationType;
 import akin.city_card.station.repository.StationRepository;
 import akin.city_card.station.service.abstracts.StationService;
+import akin.city_card.user.model.User;
 import akin.city_card.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,11 +40,11 @@ public class StationManager implements StationService {
     private final StationConverter stationConverter;
 
     @Override
-    public DataResponseMessage<StationDTO> createStation(UserDetails userDetails, CreateStationRequest request) throws AdminNotFoundException {
+    @Transactional
+    public DataResponseMessage<StationDTO> createStation(UserDetails userDetails, CreateStationRequest request) throws AdminNotFoundException, UnauthorizedAreaException {
         if (!isAdminOrSuperAdmin(userDetails)) {
-            throw new SecurityException("Yetkiniz yok.");
+            throw new UnauthorizedAreaException();
         }
-
         Station station = Station.builder()
                 .name(request.getName())
                 .type(request.getType())
@@ -51,7 +57,7 @@ public class StationManager implements StationService {
                         .build())
                 .active(true)
                 .deleted(false)
-                .createdBy((Admin) securityUserRepository.findByUserNumber(userDetails.getUsername())
+                .createdBy(securityUserRepository.findByUserNumber(userDetails.getUsername())
                         .orElseThrow(AdminNotFoundException::new))
                 .createdDate(LocalDateTime.now())
                 .updatedDate(LocalDateTime.now())
@@ -62,6 +68,7 @@ public class StationManager implements StationService {
     }
 
     @Override
+    @Transactional
     public DataResponseMessage<StationDTO> updateStation(String username, UpdateStationRequest request) {
         Station station = stationRepository.findById(request.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Durak bulunamadı."));
@@ -88,6 +95,7 @@ public class StationManager implements StationService {
     }
 
     @Override
+    @Transactional
     public DataResponseMessage<StationDTO> changeStationStatus(Long id, boolean active, String username) {
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Durak bulunamadı."));
@@ -98,6 +106,7 @@ public class StationManager implements StationService {
     }
 
     @Override
+    @Transactional
     public ResponseMessage deleteStation(Long id, String username) {
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Durak bulunamadı."));
@@ -109,19 +118,40 @@ public class StationManager implements StationService {
     }
 
     @Override
-    public DataResponseMessage<List<StationDTO>> getAllStations(double latitude, double longitude) {
+    public DataResponseMessage<PageDTO<StationDTO>> getAllStations(double latitude, double longitude, StationType type, int page, int size) {
         List<Station> stations = stationRepository.findAll()
                 .stream()
                 .filter(s -> !s.isDeleted() && s.isActive())
+                .filter(type != null ? s -> s.getType().equals(type) : s -> true)
                 .sorted((s1, s2) -> Double.compare(
                         distance(latitude, longitude, s1.getLocation().getLatitude(), s1.getLocation().getLongitude()),
                         distance(latitude, longitude, s2.getLocation().getLatitude(), s2.getLocation().getLongitude())
                 ))
                 .toList();
 
-        List<StationDTO> result = stations.stream().map(stationConverter::toDTO).collect(Collectors.toList());
-        return new DataResponseMessage<>("Duraklar başarıyla listelendi.", true, result);
+        int totalElements = stations.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+
+        List<StationDTO> pagedList = stations.subList(fromIndex, toIndex)
+                .stream()
+                .map(stationConverter::toDTO)
+                .collect(Collectors.toList());
+
+        PageDTO<StationDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(pagedList);
+        pageDTO.setPageNumber(page);
+        pageDTO.setPageSize(size);
+        pageDTO.setTotalElements(totalElements);
+        pageDTO.setTotalPages(totalPages);
+        pageDTO.setFirst(page == 0);
+        pageDTO.setLast(page + 1 >= totalPages);
+
+        return new DataResponseMessage<>("Duraklar başarıyla listelendi.", true, pageDTO);
     }
+
 
     @Override
     public DataResponseMessage<StationDTO> getStationById(Long id) {
@@ -131,35 +161,180 @@ public class StationManager implements StationService {
     }
 
     @Override
-    public DataResponseMessage<List<StationDTO>> searchStationsByName(String name) {
-        List<Station> stations = stationRepository.findByNameContainingIgnoreCase(name);
-        List<StationDTO> result = stations.stream().map(stationConverter::toDTO).collect(Collectors.toList());
-        return new DataResponseMessage<>("Arama sonucu listelendi.", true, result);
+    public DataResponseMessage<PageDTO<StationDTO>> searchStationsByName(String name, int page, int size) {
+        String query = name != null ? name.toLowerCase() : "";
+
+        List<Station> stations = stationRepository.findAll().stream()
+                .filter(station -> station.isActive() && !station.isDeleted())
+                .filter(station -> {
+                    String stationName = station.getName() != null ? station.getName().toLowerCase() : "";
+                    String street = station.getAddress() != null && station.getAddress().getStreet() != null
+                            ? station.getAddress().getStreet().toLowerCase() : "";
+                    String district = station.getAddress() != null && station.getAddress().getDistrict() != null
+                            ? station.getAddress().getDistrict().toLowerCase() : "";
+                    String city = station.getAddress() != null && station.getAddress().getCity() != null
+                            ? station.getAddress().getCity().toLowerCase() : "";
+
+                    return stationName.contains(query) || street.contains(query) || district.contains(query) || city.contains(query);
+                })
+                .toList();
+
+        int total = stations.size();
+        int totalPages = (int) Math.ceil((double) total / size);
+        int fromIndex = Math.min(page * size, total);
+        int toIndex = Math.min(fromIndex + size, total);
+
+        List<StationDTO> content = stations.subList(fromIndex, toIndex)
+                .stream()
+                .map(stationConverter::toDTO)
+                .collect(Collectors.toList());
+
+        PageDTO<StationDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(content);
+        pageDTO.setPageNumber(page);
+        pageDTO.setPageSize(size);
+        pageDTO.setTotalElements(total);
+        pageDTO.setTotalPages(totalPages);
+        pageDTO.setFirst(page == 0);
+        pageDTO.setLast(page + 1 >= totalPages);
+
+        return new DataResponseMessage<>("İstasyon arama sonuçları başarıyla listelendi.", true, pageDTO);
     }
 
+
     @Override
-    public DataResponseMessage<List<StationDTO>> searchNearbyStations(SearchStationRequest request) {
+    public DataResponseMessage<PageDTO<StationDTO>> searchNearbyStations(SearchStationRequest request, int page, int size) {
         double radiusKm = 5.0;
         double lat = request.getLatitude();
         double lon = request.getLongitude();
-        String query = request.getQuery().toLowerCase();
+        String query = request.getQuery() != null ? request.getQuery().toLowerCase() : "";
 
         List<Station> allStations = stationRepository.findAll();
 
-        List<StationDTO> nearbyStations = allStations.stream()
+        List<Station> matchedStations = allStations.stream()
                 .filter(station -> station.isActive() && !station.isDeleted())
                 .filter(station -> {
-                    double stationLat = station.getLocation().getLatitude();
-                    double stationLon = station.getLocation().getLongitude();
-                    double distance = haversine(lat, lon, stationLat, stationLon);
-                    return distance <= radiusKm &&
-                            (station.getName().toLowerCase().contains(query));
+                    String name = station.getName() != null ? station.getName().toLowerCase() : "";
+                    String street = station.getAddress().getStreet() != null ? station.getAddress().getStreet().toLowerCase() : "";
+                    String district = station.getAddress().getDistrict() != null ? station.getAddress().getDistrict().toLowerCase() : "";
+                    String city = station.getAddress().getCity() != null ? station.getAddress().getCity().toLowerCase() : "";
+
+                    return name.contains(query) ||
+                            street.contains(query) ||
+                            district.contains(query) ||
+                            city.contains(query);
                 })
+                .toList();
+
+        if (matchedStations.isEmpty() && lat != 0 && lon != 0) {
+            matchedStations = allStations.stream()
+                    .filter(station -> station.isActive() && !station.isDeleted())
+                    .filter(station -> {
+                        double stationLat = station.getLocation().getLatitude();
+                        double stationLon = station.getLocation().getLongitude();
+                        return haversine(lat, lon, stationLat, stationLon) <= radiusKm;
+                    })
+                    .toList();
+        }
+
+        // Sayfalama
+        int total = matchedStations.size();
+        int totalPages = (int) Math.ceil((double) total / size);
+        int fromIndex = Math.min(page * size, total);
+        int toIndex = Math.min(fromIndex + size, total);
+
+        List<StationDTO> content = matchedStations.subList(fromIndex, toIndex)
+                .stream()
                 .map(stationConverter::convertToDTO)
                 .toList();
 
-        return new DataResponseMessage<>("Yakındaki istasyonlar başarıyla getirildi.", true, nearbyStations);
+        PageDTO<StationDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(content);
+        pageDTO.setPageNumber(page);
+        pageDTO.setPageSize(size);
+        pageDTO.setTotalElements(total);
+        pageDTO.setTotalPages(totalPages);
+        pageDTO.setFirst(page == 0);
+        pageDTO.setLast(page + 1 >= totalPages);
+
+        return new DataResponseMessage<>("İstasyonlar başarıyla listelendi.", true, pageDTO);
     }
+
+    @Override
+    public DataResponseMessage<List<StationDTO>> getFavorite(String username) {
+        User user = userRepository.findByUserNumber(username).orElseThrow(EntityNotFoundException::new);
+        return new DataResponseMessage<>("favoriler", true, user.getFavoriteStations().stream().map(stationConverter::toDTO).collect(Collectors.toList()));
+    }
+
+    @Override
+    @Transactional
+    public ResponseMessage removeFavoriteStation(String username, Long stationId) {
+        User user = userRepository.findByUserNumber(username).orElseThrow(EntityNotFoundException::new);
+        boolean isDeleted = user.getFavoriteStations().removeIf(station -> station.getId().equals(stationId));
+        return new ResponseMessage("silme işlemi :" + isDeleted, true);
+    }
+
+    @Override
+    @Transactional
+    public ResponseMessage addFavoriteStation(String username, Long stationId) throws StationNotFoundException, StationNotActiveException {
+        User user = userRepository.findByUserNumber(username).orElseThrow(EntityNotFoundException::new);
+        if (user.getFavoriteStations().isEmpty()) {
+            List<Station> stations = new ArrayList<>();
+            user.setFavoriteStations(stations);
+        }
+        if ((long) user.getFavoriteStations().size() > 10) {
+            return new ResponseMessage("Daha fazla durak favorilere eklenemez", false);
+        }
+        Station station = stationRepository.findById(stationId).orElseThrow(StationNotFoundException::new);
+        if (!station.isActive() || station.isDeleted()) {
+            throw new StationNotActiveException();
+        }
+        user.getFavoriteStations().add(station);
+        userRepository.save(user);
+
+        return new ResponseMessage("Durak favorilere eklendi.", true);
+    }
+
+    @Override
+    public Set<String> getMatchingKeywords(String query) {
+        String lowerQuery = query.toLowerCase();
+
+        return stationRepository.findAll().stream()
+                .filter(station -> station.isActive() && !station.isDeleted())
+                .flatMap(station -> {
+                    Set<String> keywords = new HashSet<>();
+
+                    // Durak adı
+                    if (station.getName() != null) {
+                        keywords.addAll(splitWords(station.getName()));
+                    }
+
+                    // Adres bileşenleri
+                    if (station.getAddress() != null) {
+                        if (station.getAddress().getStreet() != null)
+                            keywords.addAll(splitWords(station.getAddress().getStreet()));
+                        if (station.getAddress().getDistrict() != null)
+                            keywords.addAll(splitWords(station.getAddress().getDistrict()));
+                        if (station.getAddress().getCity() != null)
+                            keywords.addAll(splitWords(station.getAddress().getCity()));
+                    }
+
+                    return keywords.stream();
+                })
+                .filter(word -> word.toLowerCase().contains(lowerQuery))
+                .collect(Collectors.toSet());
+    }
+    private Set<String> splitWords(String text) {
+        if (text == null) return Set.of();
+
+        // Noktalama işaretlerine göre kelimeleri ayır: boşluk, nokta, iki nokta, tire vb.
+        String[] parts = text.split("[\\s,.:;-]+");
+
+        return Arrays.stream(parts)
+                .filter(part -> !part.isBlank())
+                .collect(Collectors.toSet());
+    }
+
 
     private double haversine(double lat1, double lon1, double lat2, double lon2) {
         final int R = 6371; // Dünya yarıçapı km
@@ -173,7 +348,6 @@ public class StationManager implements StationService {
     }
 
 
-
     // Helper methods
 
     private boolean isAdminOrSuperAdmin(UserDetails userDetails) {
@@ -182,8 +356,6 @@ public class StationManager implements StationService {
     }
 
 
-
-    // Haversine formülü ile mesafe hesabı (km cinsinden)
     private double distance(double lat1, double lon1, double lat2, double lon2) {
         final int R = 6371; // Dünya yarıçapı (km)
         double dLat = Math.toRadians(lat2 - lat1);

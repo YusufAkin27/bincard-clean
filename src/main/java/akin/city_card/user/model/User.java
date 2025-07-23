@@ -9,6 +9,7 @@ import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationPreferences;
 import akin.city_card.route.model.Route;
 import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.station.model.Station;
 import akin.city_card.verification.model.VerificationCode;
 import akin.city_card.wallet.model.Wallet;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -108,6 +109,14 @@ public class User extends SecurityUser {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private Wallet wallet;
+
+    @OneToMany
+    @JoinTable(
+            name = "user_favorite_stations",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "station_id")
+    )
+    private List<Station> favoriteStations = new ArrayList<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore

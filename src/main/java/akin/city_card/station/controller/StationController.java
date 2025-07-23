@@ -2,11 +2,17 @@ package akin.city_card.station.controller;
 
 import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.bus.core.response.StationDTO;
+import akin.city_card.bus.service.abstracts.GoogleMapsService;
+import akin.city_card.news.core.response.PageDTO;
+import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
+import akin.city_card.station.exceptions.StationNotActiveException;
+import akin.city_card.station.exceptions.StationNotFoundException;
+import akin.city_card.station.model.StationType;
 import akin.city_card.station.service.abstracts.StationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RequiredArgsConstructor
 @RestController
@@ -21,10 +28,26 @@ import java.util.List;
 public class StationController {
 
     private final StationService stationService;
+    private final GoogleMapsService googleMapsService;
 
-    @GetMapping
-    public DataResponseMessage<List<StationDTO>> getAllStations(@RequestParam double latitude, @RequestParam double longitude) {
-        return stationService.getAllStations(latitude,longitude);
+    @PostMapping
+    public DataResponseMessage<StationDTO> createStation(@AuthenticationPrincipal UserDetails userDetails, @RequestBody CreateStationRequest request) throws AdminNotFoundException, UnauthorizedAreaException {
+        return stationService.createStation(userDetails, request);
+    }
+
+    @PutMapping
+    public DataResponseMessage<StationDTO> updateStation(@RequestBody UpdateStationRequest request, @AuthenticationPrincipal UserDetails userDetails) {
+        return stationService.updateStation(userDetails.getUsername(), request);
+    }
+
+    @PatchMapping("/{id}/status")
+    public DataResponseMessage<StationDTO> changeStationStatus(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id, @RequestParam boolean active) {
+        return stationService.changeStationStatus(id, active, userDetails.getUsername());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseMessage deleteStation(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return stationService.deleteStation(id, userDetails.getUsername());
     }
 
     @GetMapping("/{id}")
@@ -32,33 +55,53 @@ public class StationController {
         return stationService.getStationById(id);
     }
 
+    @GetMapping
+    public DataResponseMessage<PageDTO<StationDTO>> getAllStations(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(required = false) StationType type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return stationService.getAllStations(latitude, longitude, type, page, size);
+    }
+
+
+    @PostMapping("/add-favorite")
+    public ResponseMessage addFavoriteStation(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Long stationId) throws StationNotFoundException, StationNotActiveException {
+        return stationService.addFavoriteStation(userDetails.getUsername(), stationId);
+    }
+
+    @DeleteMapping("/remove-favorite")
+    public ResponseMessage removeFavoriteStation(@AuthenticationPrincipal UserDetails userDetails, @RequestParam Long stationId) {
+        return stationService.removeFavoriteStation(userDetails.getUsername(), stationId);
+    }
+
+    @GetMapping("/favorite")
+    public DataResponseMessage<List<StationDTO>> getFavoriteStations(@AuthenticationPrincipal UserDetails userDetails) {
+        return stationService.getFavorite(userDetails.getUsername());
+    }
+
+
     @GetMapping("/search")
-    public DataResponseMessage<List<StationDTO>> searchStations(@RequestParam String name) {
-        return stationService.searchStationsByName(name);
+    public DataResponseMessage<PageDTO<StationDTO>> searchStations(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return stationService.searchStationsByName(name, page, size);
     }
 
-    @PostMapping
-    public DataResponseMessage<StationDTO> createStation(@AuthenticationPrincipal UserDetails userDetails,@RequestBody CreateStationRequest request) throws AdminNotFoundException {
-        return stationService.createStation(userDetails,request);
-    }
 
-    @PutMapping("/{id}")
-    public DataResponseMessage<StationDTO> updateStation(@RequestBody UpdateStationRequest request, @AuthenticationPrincipal UserDetails userDetails) {
-        return stationService.updateStation(userDetails.getUsername(), request);
-    }
-
-    @PatchMapping("/{id}/status")
-    public DataResponseMessage<StationDTO> changeStationStatus(@AuthenticationPrincipal UserDetails userDetails,@PathVariable Long id, @RequestParam boolean active) {
-        return stationService.changeStationStatus(id, active,userDetails.getUsername());
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseMessage deleteStation(@AuthenticationPrincipal UserDetails userDetails,@PathVariable Long id) {
-       return stationService.deleteStation(id,userDetails.getUsername());
-    }
     @PostMapping("/search/nearby")
-    public DataResponseMessage<List<StationDTO>> searchNearbyStations(@RequestBody SearchStationRequest request) {
-        return stationService.searchNearbyStations(request);
+    public DataResponseMessage<PageDTO<StationDTO>> searchNearbyStations(@RequestBody SearchStationRequest request,
+                                                                         @RequestParam(defaultValue = "0") int page,
+                                                                         @RequestParam(defaultValue = "10") int size) {
+        return stationService.searchNearbyStations(request, page, size);
+    }
+
+    @GetMapping("/keywords")
+    public Set<String> searchKeywords(@RequestParam String query) {
+        return stationService.getMatchingKeywords(query);
     }
 
 }
