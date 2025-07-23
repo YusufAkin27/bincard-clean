@@ -24,9 +24,6 @@ public class RouteStationNode {
     @ManyToOne
     private Station toStation;
 
-    @Enumerated(EnumType.STRING)
-    private Direction direction; // GIDIS or DONUS
-
     @Embedded
     private RouteSchedule schedule;
 

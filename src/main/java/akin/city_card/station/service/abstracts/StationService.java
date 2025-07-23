@@ -6,6 +6,7 @@ import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.route.core.response.PublicRouteDTO;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
@@ -43,4 +44,8 @@ public interface StationService {
     ResponseMessage addFavoriteStation(String username, Long stationId) throws StationNotFoundException, StationNotActiveException;
 
     Set<String> getMatchingKeywords(String query);
+
+    DataResponseMessage<List<PublicRouteDTO>> getRoutes(Long stationId) throws StationNotFoundException;
+
+    DataResponseMessage<PageDTO<StationDTO>> NearbyStations(double latitude, double longitude, int page, int size);
 }

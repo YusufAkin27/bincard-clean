@@ -6,7 +6,6 @@ import akin.city_card.bus.repository.BusLocationRepository;
 import akin.city_card.bus.repository.BusRepository;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteStationNode;
-import akin.city_card.route.model.Direction;
 import akin.city_card.route.repository.RouteStationNodeRepository;
 import akin.city_card.station.model.Station;
 import akin.city_card.station.repository.StationRepository;

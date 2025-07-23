@@ -7,6 +7,8 @@ import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.route.core.response.PublicRouteDTO;
+import akin.city_card.route.core.response.RouteDTO;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
@@ -103,5 +105,20 @@ public class StationController {
     public Set<String> searchKeywords(@RequestParam String query) {
         return stationService.getMatchingKeywords(query);
     }
+
+    @GetMapping("/routes")
+    public DataResponseMessage<List<PublicRouteDTO>> getRoutes(@RequestParam Long stationId) throws StationNotFoundException, StationNotActiveException {
+        return stationService.getRoutes(stationId);
+    }
+    @GetMapping("/nearby")
+    public DataResponseMessage<PageDTO<StationDTO>> getNearbyStations(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return stationService.NearbyStations(latitude, longitude, page, size);
+    }
+
 
 }

@@ -1,7 +1,6 @@
 package akin.city_card.route.core.response;
 
 import akin.city_card.bus.core.response.StationDTO;
-import akin.city_card.route.model.Direction;
 import com.fasterxml.jackson.annotation.JsonView;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,9 +25,5 @@ public class RouteStationNodeDTO {
 
     @JsonView(Views.User.class)
     private int sequenceOrder;
-
-    @JsonView(Views.User.class)
-    private Direction direction;
-
 
 }

@@ -8,6 +8,11 @@ import akin.city_card.paymentPoint.model.Address;
 import akin.city_card.paymentPoint.model.Location;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.route.core.converter.RouteConverter;
+import akin.city_card.route.core.response.PublicRouteDTO;
+import akin.city_card.route.core.response.RouteDTO;
+import akin.city_card.route.model.Route;
+import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.station.core.converter.StationConverter;
 import akin.city_card.station.core.request.CreateStationRequest;
@@ -38,6 +43,8 @@ public class StationManager implements StationService {
     private final UserRepository userRepository;
     private final SecurityUserRepository securityUserRepository;
     private final StationConverter stationConverter;
+    private final RouteRepository routeRepository;
+    private final RouteConverter routeConverter;
 
     @Override
     @Transactional
@@ -245,7 +252,7 @@ public class StationManager implements StationService {
 
         List<StationDTO> content = matchedStations.subList(fromIndex, toIndex)
                 .stream()
-                .map(stationConverter::convertToDTO)
+                .map(stationConverter::toDTO)
                 .toList();
 
         PageDTO<StationDTO> pageDTO = new PageDTO<>();
@@ -304,12 +311,10 @@ public class StationManager implements StationService {
                 .flatMap(station -> {
                     Set<String> keywords = new HashSet<>();
 
-                    // Durak adı
                     if (station.getName() != null) {
                         keywords.addAll(splitWords(station.getName()));
                     }
 
-                    // Adres bileşenleri
                     if (station.getAddress() != null) {
                         if (station.getAddress().getStreet() != null)
                             keywords.addAll(splitWords(station.getAddress().getStreet()));
@@ -324,10 +329,73 @@ public class StationManager implements StationService {
                 .filter(word -> word.toLowerCase().contains(lowerQuery))
                 .collect(Collectors.toSet());
     }
+
+    @Override
+    public DataResponseMessage<List<PublicRouteDTO>> getRoutes(Long stationId) throws StationNotFoundException {
+        Station station = stationRepository.findById(stationId)
+                .orElseThrow(StationNotFoundException::new);
+
+        List<Route> allRoutes = routeRepository.findAll();
+
+        Set<Route> matchedRoutes = allRoutes.stream()
+                .filter(route -> route.getStationNodes().stream()
+                        .anyMatch(node -> node.getFromStation().getId().equals(station.getId()))
+                )
+                .filter(route -> route.isActive() && !route.isDeleted())
+                .collect(Collectors.toSet());
+
+        List<PublicRouteDTO> result = matchedRoutes.stream()
+                .map(routeConverter::toPublicRoute)
+                .toList();
+
+        return new DataResponseMessage<>("Rotalar başarıyla listelendi.", true, result);
+    }
+
+    @Override
+    public DataResponseMessage<PageDTO<StationDTO>> NearbyStations(double userLat, double userLon, int page, int size) {
+        double radiusKm = 5.0;
+
+        List<Station> nearbyStations = stationRepository.findAll().stream()
+                .filter(station -> station.isActive() && !station.isDeleted())
+                .filter(station -> {
+                    double stationLat = station.getLocation().getLatitude();
+                    double stationLon = station.getLocation().getLongitude();
+                    double distance = haversine(userLat, userLon, stationLat, stationLon);
+                    return distance <= radiusKm;
+                })
+                .sorted(Comparator.comparingDouble(station ->
+                        haversine(userLat, userLon,
+                                station.getLocation().getLatitude(),
+                                station.getLocation().getLongitude())))
+                .toList();
+
+        int totalElements = nearbyStations.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int fromIndex = page * size;
+        int toIndex = Math.min(fromIndex + size, totalElements);
+
+        List<StationDTO> pagedStations = nearbyStations.subList(fromIndex, toIndex)
+                .stream()
+                .map(stationConverter::toDTO)
+                .toList();
+
+        PageDTO<StationDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(pagedStations);
+        pageDTO.setPageNumber(page);
+        pageDTO.setPageSize(size);
+        pageDTO.setTotalElements(totalElements);
+        pageDTO.setTotalPages(totalPages);
+        pageDTO.setFirst(page == 0);
+        pageDTO.setLast(page + 1 >= totalPages);
+
+        return new DataResponseMessage<>("Yakındaki duraklar başarıyla listelendi.", true, pageDTO);
+    }
+
+
+
     private Set<String> splitWords(String text) {
         if (text == null) return Set.of();
 
-        // Noktalama işaretlerine göre kelimeleri ayır: boşluk, nokta, iki nokta, tire vb.
         String[] parts = text.split("[\\s,.:;-]+");
 
         return Arrays.stream(parts)

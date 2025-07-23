@@ -2,7 +2,6 @@ package akin.city_card.simulation;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.bus.model.Bus;
-import akin.city_card.route.model.Direction;
 import akin.city_card.route.model.RouteStationNode;
 import akin.city_card.station.model.Station;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +25,6 @@ public class BusSimulatorTask implements Runnable {
 
     private int currentNodeIndex = 0;
     private double currentProgress = 0.0; // 0.0 to 1.0 between stations
-    private Direction currentDirection = Direction.GIDIS;
     private final Random random = new Random();
 
     // Speed and movement variation
@@ -151,16 +149,11 @@ public class BusSimulatorTask implements Runnable {
         }
     }
 
-
     private void moveToNextNode() {
         currentNodeIndex = (currentNodeIndex + 1) % routeNodes.size();
 
-        if (currentNodeIndex == 0) {
-            currentDirection = (currentDirection == Direction.GIDIS) ? Direction.DONUS : Direction.GIDIS;
-        }
-
-        log.debug("Bus {} moved to node {}, direction: {}",
-                bus.getId(), currentNodeIndex, currentDirection);
+        log.debug("Bus {} moved to node {}",
+                bus.getId(), currentNodeIndex);
     }
 
     private void sendLocationUpdate(double lat, double lon) {

@@ -106,7 +106,6 @@ public class RouteManager implements RouteService {
             node.setRoute(route);
             node.setFromStation(fromStation);
             node.setToStation(toStation);
-            node.setDirection(nodeRequest.getDirection());
             node.setSequenceOrder(order++);
             node.setSchedule(schedule);
 
@@ -168,7 +167,6 @@ public class RouteManager implements RouteService {
             node.setRoute(route);
             node.setFromStation(fromStation);
             node.setToStation(toStation);
-            node.setDirection(nodeReq.getDirection());
             node.setSequenceOrder(order++);
             node.setSchedule(schedule);
 
@@ -246,7 +244,6 @@ public class RouteManager implements RouteService {
         node1.setRoute(route);
         node1.setFromStation(afterStation);
         node1.setToStation(newStation);
-        node1.setDirection(oldEdge.getDirection());
         node1.setSchedule(new RouteSchedule());
         node1.setSequenceOrder(oldEdge.getSequenceOrder());
 
@@ -254,7 +251,6 @@ public class RouteManager implements RouteService {
         node2.setRoute(route);
         node2.setFromStation(newStation);
         node2.setToStation(toStation);
-        node2.setDirection(oldEdge.getDirection());
         node2.setSchedule(new RouteSchedule());
         node2.setSequenceOrder(oldEdge.getSequenceOrder() + 1);
 
@@ -297,7 +293,6 @@ public class RouteManager implements RouteService {
             newNode.setRoute(route);
             newNode.setFromStation(incoming.getFromStation());
             newNode.setToStation(outgoing.getToStation());
-            newNode.setDirection(incoming.getDirection());
             newNode.setSchedule(new RouteSchedule());
             newNode.setSequenceOrder(incoming.getSequenceOrder());
 

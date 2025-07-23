@@ -1,6 +1,5 @@
 package akin.city_card.bus.model;
 
-import akin.city_card.route.model.Direction;
 import akin.city_card.station.model.Station;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -39,8 +38,6 @@ public class BusLocation {
 
     private Double distanceToClosestStation;
 
-    @Enumerated(EnumType.STRING)
-    private Direction direction;
 
     @PrePersist
     protected void onCreate() {

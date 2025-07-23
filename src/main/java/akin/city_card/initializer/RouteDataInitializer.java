@@ -58,7 +58,6 @@ public class RouteDataInitializer implements ApplicationRunner {
                 node.setRoute(route);
                 node.setFromStation(from);
                 node.setToStation(to);
-                node.setDirection(Direction.GIDIS);
                 node.setSequenceOrder(j + 1);
                 node.setSchedule(generateRandomSchedule());
                 nodes.add(node);

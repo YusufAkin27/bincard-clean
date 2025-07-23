@@ -6,15 +6,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class StationConverterImpl implements StationConverter {
-    @Override
-    public StationDTO convertToDTO(Station station) {
-        return StationDTO.builder()
-                .id(station.getId())
-                .name(station.getName())
-                .latitude(station.getLocation().getLatitude())
-                .longitude(station.getLocation().getLongitude())
-                .build();
-    }
 
     @Override
     public StationDTO toDTO(Station station) {

@@ -1,6 +1,7 @@
 package akin.city_card.route.core.converter;
 
 import akin.city_card.bus.core.converter.BusConverter;
+import akin.city_card.route.core.response.PublicRouteDTO;
 import akin.city_card.route.core.response.RouteDTO;
 import akin.city_card.route.core.response.RouteScheduleDTO;
 import akin.city_card.route.core.response.RouteStationNodeDTO;
@@ -29,11 +30,22 @@ public class RouteConverterImpl implements RouteConverter {
                 .isActive(route.isActive())
                 .isDeleted(route.isDeleted())
                 .deletedAt(route.getDeletedAt())
-                .startStation(stationConverter.convertToDTO(route.getStartStation()))
-                .endStation(stationConverter.convertToDTO(route.getEndStation()))
+                .startStation(stationConverter.toDTO(route.getStartStation()))
+                .endStation(stationConverter.toDTO(route.getEndStation()))
                 .stationNodes(toStationNodeDTOList(route.getStationNodes()))
                 .busDTOS(busConverter.toBusDTOList(route.getBuses()))
                 .build();
+    }
+
+    @Override
+    public PublicRouteDTO toPublicRoute(Route route) {
+        return PublicRouteDTO.builder()
+                .name(route.getName())
+                .endStation(stationConverter.toDTO(route.getEndStation()))
+                .startStation(stationConverter.toDTO(route.getStartStation()))
+                .id(route.getId())
+                .build();
+
     }
 
     @Override
@@ -45,10 +57,9 @@ public class RouteConverterImpl implements RouteConverter {
     public RouteStationNodeDTO toStationNodeDTO(RouteStationNode node) {
         return RouteStationNodeDTO.builder()
                 .id(node.getId())
-                .fromStation(stationConverter.convertToDTO(node.getFromStation()))
-                .toStation(stationConverter.convertToDTO(node.getToStation()))
+                .fromStation(stationConverter.toDTO(node.getFromStation()))
+                .toStation(stationConverter.toDTO(node.getToStation()))
                 .sequenceOrder(node.getSequenceOrder())
-                .direction(node.getDirection())
                 .build();
     }
 
