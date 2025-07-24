@@ -29,4 +29,17 @@ public interface RouteRepository extends JpaRepository<Route, Long> {
       AND r.isActive = true AND r.isDeleted = false
 """)
     List<Route> findRoutesByStation(@Param("stationId") Long stationId);
+
+    @Query("""
+    SELECT DISTINCT r FROM Route r 
+    JOIN r.stationNodes sn1 
+    JOIN r.stationNodes sn2 
+    WHERE sn1.fromStation.id = :startStationId 
+      AND sn2.toStation.id = :endStationId 
+      AND sn1.sequenceOrder < sn2.sequenceOrder 
+      AND r.isActive = true 
+      AND r.isDeleted = false
+""")
+    List<Route> findRoutesByStations(Long startStationId, Long endStationId);
+
 }

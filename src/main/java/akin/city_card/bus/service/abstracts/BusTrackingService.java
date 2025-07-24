@@ -207,7 +207,7 @@ public class BusTrackingService {
             Station toStation = node.getToStation();
             
             // Google Maps API'den seyahat süresini al
-            GoogleMapsResponse response = googleMapsService.getDirections(
+            GoogleMapsService.GoogleMapsResponse response = googleMapsService.getDirections(
                 currentLat, currentLng,
                 toStation.getLocation().getLatitude(),
                 toStation.getLocation().getLongitude()

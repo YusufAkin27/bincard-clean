@@ -5,14 +5,15 @@ import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.request.CreateRouteRequest;
-import akin.city_card.route.core.request.UpdateRouteRequest;
 import akin.city_card.route.core.response.RouteDTO;
 import akin.city_card.route.core.response.RouteNameDTO;
-import akin.city_card.route.model.Route;
+import akin.city_card.route.core.request.RouteSuggestionRequest;
+import akin.city_card.route.core.response.RouteSuggestionResponse;
+import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
+import akin.city_card.route.exceptions.RouteNotActiveException;
 import akin.city_card.route.service.abstracts.RouteService;
+import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.station.exceptions.StationNotFoundException;
-import akin.city_card.user.core.response.Views;
-import com.fasterxml.jackson.annotation.JsonView;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -81,6 +82,28 @@ public class RouteController {
         return routeService.findRoutesByStationId(stationId);
     }
 
+    @PostMapping("/add-favorite")
+    public ResponseMessage addFavorite(@AuthenticationPrincipal UserDetails userDetails,
+                                       @RequestParam Long routeId) throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException, RouteAlreadyFavoriteException {
+        return routeService.addFavorite(userDetails.getUsername(), routeId);
+    }
+
+    @DeleteMapping("/remove-favorite")
+    public ResponseMessage removeFavorite(@AuthenticationPrincipal UserDetails userDetails,
+                                          @RequestParam Long routeId) throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException {
+        return routeService.removeFavorite(userDetails.getUsername(), routeId);
+    }
+
+    @GetMapping("/favorite")
+    public DataResponseMessage<List<RouteNameDTO>> favoriteRoutes(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
+        return routeService.favotiteRoutes(userDetails.getUsername());
+    }
+
+    @PostMapping("/suggest")
+    public DataResponseMessage<RouteSuggestionResponse> suggestRoute(@RequestBody RouteSuggestionRequest request) {
+      return routeService.suggestRoute(request);
+
+    }
 
 }
 

@@ -1,6 +1,7 @@
 package akin.city_card.route.service.concretes;
 
 import akin.city_card.bus.exceptions.RouteNotFoundException;
+import akin.city_card.bus.service.abstracts.GoogleMapsService;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -9,6 +10,10 @@ import akin.city_card.route.core.request.CreateRouteNodeRequest;
 import akin.city_card.route.core.request.CreateRouteRequest;
 import akin.city_card.route.core.response.RouteDTO;
 import akin.city_card.route.core.response.RouteNameDTO;
+import akin.city_card.route.core.request.RouteSuggestionRequest;
+import akin.city_card.route.core.response.RouteSuggestionResponse;
+import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
+import akin.city_card.route.exceptions.RouteNotActiveException;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteSchedule;
 import akin.city_card.route.model.RouteStationNode;
@@ -16,12 +21,16 @@ import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.route.service.abstracts.RouteService;
 import akin.city_card.security.entity.Role;
 import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.Station;
 import akin.city_card.station.repository.StationRepository;
+import akin.city_card.user.model.User;
+import akin.city_card.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -31,17 +40,21 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RouteManager implements RouteService {
+    private static final double MAX_DISTANCE_KM = 0.5;
     private final RouteRepository routeRepository;
     private final RouteConverter routeConverter;
     private final SecurityUserRepository securityUserRepository;
     private final StationRepository stationRepository;
+    private final UserRepository userRepository;
+    private final GoogleMapsService googleMapsService;
 
     @Override
     public DataResponseMessage<List<RouteNameDTO>> searchRoutesByName(String name) {
         List<Route> routes = routeRepository.searchByKeyword(name);
         List<RouteNameDTO> dtos = routes.stream()
-                .filter(route ->route.isActive())
+                .filter(route -> route.isActive())
                 .filter(route -> !route.isDeleted())
                 .filter(route -> !route.getStationNodes().isEmpty())
                 .map(routeConverter::toRouteNameDTO)
@@ -128,8 +141,6 @@ public class RouteManager implements RouteService {
     }
 
 
-
-
     @Override
     @Transactional
     public ResponseMessage deleteRoute(String username, Long id) throws UnauthorizedAreaException, RouteNotFoundException {
@@ -164,7 +175,6 @@ public class RouteManager implements RouteService {
 
         return new DataResponseMessage<>("Aktif rotalar başarıyla listelendi.", true, activeRoutes);
     }
-
 
 
     @Override
@@ -258,4 +268,134 @@ public class RouteManager implements RouteService {
 
         return new DataResponseMessage<>("Station removed and nodes updated", true, routeConverter.toRouteDTO(route));
     }
+
+    @Override
+    @Transactional
+    public ResponseMessage addFavorite(String username, Long routeId) throws RouteNotActiveException, UserNotFoundException, RouteNotFoundException, RouteAlreadyFavoriteException {
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        Route route = routeRepository.findById(routeId).orElseThrow(RouteNotFoundException::new);
+        if (!route.isActive() || route.isDeleted()) {
+            throw new RouteNotActiveException();
+        }
+        if (user.getFavoriteRoutes().isEmpty()) {
+            List<Route> routes = new ArrayList<>();
+            user.setFavoriteRoutes(routes);
+        }
+        boolean isPresent = user.getFavoriteRoutes().stream().anyMatch(route1 -> route1.getId().equals(route.getId()));
+
+        if (isPresent) {
+            throw new RouteAlreadyFavoriteException();
+        }
+        user.getFavoriteRoutes().add(route);
+        return new ResponseMessage("Rota eklendi", true);
+    }
+
+    @Override
+    @Transactional
+    public ResponseMessage removeFavorite(String username, Long routeId) throws RouteNotFoundException, UserNotFoundException, RouteNotActiveException {
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        Route route = routeRepository.findById(routeId).orElseThrow(RouteNotFoundException::new);
+        if (!route.isActive() || route.isDeleted()) {
+            throw new RouteNotActiveException();
+        }
+        if (user.getFavoriteRoutes().isEmpty()) {
+            List<Route> routes = new ArrayList<>();
+            user.setFavoriteRoutes(routes);
+        }
+        boolean isDeleted = user.getFavoriteRoutes().removeIf(route1 -> route1.getId().equals(route.getId()));
+        return new ResponseMessage("Rota silme  " + isDeleted, true);
+    }
+
+    @Override
+    public DataResponseMessage<List<RouteNameDTO>> favotiteRoutes(String username) throws UserNotFoundException {
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        return new DataResponseMessage<>("favoriler", true, user.getFavoriteRoutes().stream().filter(Route::isActive).map(routeConverter::toRouteNameDTO).toList());
+
+    }
+
+    @Override
+    public DataResponseMessage<RouteSuggestionResponse> suggestRoute(RouteSuggestionRequest request) {
+        log.info("Route suggestion started for user location: ({}, {}) and destination: {}",
+                request.getUserLat(), request.getUserLng(), request.getDestinationAddress());
+
+        // 1. Hedef konumu Google Maps API ile al
+        GoogleMapsService.LatLng destinationLatLng = googleMapsService.getCoordinatesFromAddress(request.getDestinationAddress());
+        if (destinationLatLng == null) {
+            log.warn("Destination address '{}' could not be resolved to coordinates.", request.getDestinationAddress());
+            return new DataResponseMessage<>("Hedef adres bulunamadı.", false, null);
+        }
+        log.info("Destination coordinates: lat={}, lng={}", destinationLatLng.lat(), destinationLatLng.lng());
+
+        // 2. Kullanıcıya yakın durakları filtrele
+        List<Station> userNearbyStations = stationRepository.findAll().stream()
+                .filter(st -> isWithinRadius(request.getUserLat(), request.getUserLng(),
+                        st.getLocation().getLatitude(), st.getLocation().getLongitude(), MAX_DISTANCE_KM))
+                .toList();
+        log.info("User nearby stations found: {}", userNearbyStations.size());
+        userNearbyStations.forEach(st -> log.debug("User nearby station: {} at ({}, {})",
+                st.getName(), st.getLocation().getLatitude(), st.getLocation().getLongitude()));
+
+        // 3. Hedefe yakın durakları filtrele
+        List<Station> destinationNearbyStations = stationRepository.findAll().stream()
+                .filter(st -> isWithinRadius(destinationLatLng.lat(), destinationLatLng.lng(),
+                        st.getLocation().getLatitude(), st.getLocation().getLongitude(), MAX_DISTANCE_KM))
+                .toList();
+        log.info("Destination nearby stations found: {}", destinationNearbyStations.size());
+        destinationNearbyStations.forEach(st -> log.debug("Destination nearby station: {} at ({}, {})",
+                st.getName(), st.getLocation().getLatitude(), st.getLocation().getLongitude()));
+
+        // 4. Ortak rotaları bul
+        for (Station userStation : userNearbyStations) {
+            for (Station destStation : destinationNearbyStations) {
+                log.debug("Checking routes between user station '{}' and destination station '{}'",
+                        userStation.getName(), destStation.getName());
+
+                List<Route> routes = routeRepository.findRoutesByStations(userStation.getId(), destStation.getId());
+                if (!routes.isEmpty()) {
+                    Route matchedRoute = routes.get(0);
+                    log.info("Route found: '{}' between stations '{}' and '{}'", matchedRoute.getName(),
+                            userStation.getName(), destStation.getName());
+
+                    RouteSuggestionResponse response = RouteSuggestionResponse.builder()
+                            .routeFound(true)
+                            .message("Rota bulundu.")
+                            .routeName(matchedRoute.getName())
+                            .boardAt(userStation.getName())
+                            .getOffAt(destStation.getName())
+                            .googleMapUrl("https://maps.google.com/?q=" +
+                                    destStation.getLocation().getLatitude() + "," +
+                                    destStation.getLocation().getLongitude())
+                            .build();
+
+                    return new DataResponseMessage<>("Başarılı", true, response);
+                } else {
+                    log.debug("No routes found between '{}' and '{}'", userStation.getName(), destStation.getName());
+                }
+            }
+        }
+
+        // Rota bulunamadıysa
+        log.warn("No suitable route found for user location ({}, {}) to destination '{}'",
+                request.getUserLat(), request.getUserLng(), request.getDestinationAddress());
+        return new DataResponseMessage<>("Uygun rota bulunamadı.", false, null);
+    }
+
+    private boolean isWithinRadius(double lat1, double lng1, double lat2, double lng2, double radiusKm) {
+        double dist = distanceKm(lat1, lng1, lat2, lng2);
+        log.debug("Distance between ({},{}) and ({},{}) = {} km (max allowed: {})",
+                lat1, lng1, lat2, lng2, dist, radiusKm);
+        return dist <= radiusKm;
+    }
+
+    private double distanceKm(double lat1, double lng1, double lat2, double lng2) {
+        double R = 6371; // Dünya yarıçapı km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+
 }

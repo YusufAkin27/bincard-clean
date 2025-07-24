@@ -1,5 +1,9 @@
 package akin.city_card.bus.service.abstracts;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +12,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -17,10 +22,16 @@ public class GoogleMapsService {
     @Value("${google.maps.api.key}")
     private String apiKey;
 
-    @Value("${google.maps.api.url:https://maps.googleapis.com/maps/api/directions/json}")
+    // Directions API URL (sürüş tarifleri için)
+    @Value("${google.maps.api.directions.url:https://maps.googleapis.com/maps/api/directions/json}")
     private String directionsApiUrl;
 
+    // Geocoding API URL (adres -> koordinat için)
+    @Value("${google.maps.api.geocode.url:https://maps.googleapis.com/maps/api/geocode/json}")
+    private String geocodeApiUrl;
+
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Google Maps Directions API kullanarak iki nokta arası seyahat süresini hesaplar
@@ -45,7 +56,7 @@ public class GoogleMapsService {
             GoogleMapsApiResponse apiResponse = restTemplate.getForObject(url, GoogleMapsApiResponse.class);
 
             if (apiResponse != null && "OK".equals(apiResponse.getStatus()) &&
-                    !apiResponse.getRoutes().isEmpty()) {
+                    apiResponse.getRoutes() != null && !apiResponse.getRoutes().isEmpty()) {
 
                 Route route = apiResponse.getRoutes().get(0);
                 Leg leg = route.getLegs().get(0);
@@ -77,118 +88,83 @@ public class GoogleMapsService {
         }
     }
 
-    public String getRouteSummary(double originLat, double originLng,
-                                  double destLat, double destLng) {
+    /**
+     * Google Geocoding API kullanarak adresin koordinatlarını alır
+     */
+    public LatLng getCoordinatesFromAddress(String address) {
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(directionsApiUrl)
-                    .queryParam("origin", originLat + "," + originLng)
-                    .queryParam("destination", destLat + "," + destLng)
-                    .queryParam("mode", "driving")
-                    .queryParam("departure_time", "now")
-                    .queryParam("traffic_model", "best_guess")
+            String url = UriComponentsBuilder.fromHttpUrl(geocodeApiUrl)
+                    .queryParam("address", address)
                     .queryParam("key", apiKey)
-                    .queryParam("language", "tr")
                     .build()
                     .toUriString();
 
-            GoogleMapsApiResponse apiResponse = restTemplate.getForObject(url, GoogleMapsApiResponse.class);
+            String response = restTemplate.getForObject(url, String.class);
+            JsonNode root = objectMapper.readTree(response);
 
-            if (apiResponse != null && "OK".equals(apiResponse.getStatus()) && !apiResponse.getRoutes().isEmpty()) {
-                Route route = apiResponse.getRoutes().get(0);
-                Leg leg = route.getLegs().get(0);
-
-                StringBuilder stepsSummary = new StringBuilder();
-                stepsSummary.append("📍 Başlangıç: ").append(leg.getStart_address()).append("\n");
-                stepsSummary.append("🏁 Varış: ").append(leg.getEnd_address()).append("\n");
-                stepsSummary.append("🛣️ Mesafe: ").append(leg.getDistance().getText()).append("\n");
-                stepsSummary.append("⏱️ Tahmini Süre: ").append(
-                        leg.getDuration_in_traffic() != null ?
-                                leg.getDuration_in_traffic().getText() :
-                                leg.getDuration().getText()).append("\n\n");
-
-                if (leg instanceof DetailedLeg) {
-                    for (Step step : ((DetailedLeg) leg).getSteps()) {
-                        stepsSummary.append("➡️ ").append(stripHtml(step.getHtml_instructions())).append(" (")
-                                .append(step.getDistance().getText()).append(")\n");
-                    }
-                }
-
-                return stepsSummary.toString();
+            String status = root.path("status").asText();
+            if (!"OK".equals(status)) {
+                log.warn("Google Geocoding API returned status: {}", status);
+                return null;
             }
 
-            return "Rota bulunamadı. Lütfen konum bilgilerini kontrol edin.";
+            JsonNode locationNode = root.path("results").get(0).path("geometry").path("location");
+            double lat = locationNode.path("lat").asDouble();
+            double lng = locationNode.path("lng").asDouble();
+
+            return new LatLng(lat, lng);
 
         } catch (Exception e) {
-            log.error("Google Maps yön tarifi hatası", e);
-            return "Yön tarifi alınırken bir hata oluştu: " + e.getMessage();
+            log.error("Error during Google Maps Geocoding API call", e);
+            return null;
         }
     }
 
-    private String stripHtml(String html) {
-        return html.replaceAll("<[^>]*>", "");
+    public record LatLng(double lat, double lng) {}
+
+    // ----- INNER CLASSES -----
+
+    @Data
+    static class GoogleMapsApiResponse {
+        private String status;
+        private List<Route> routes;
+        private String error_message;
     }
 
+    @Data
+    static class Route {
+        private List<Leg> legs;
+        private String summary;
+    }
 
+    @Data
+    static class Leg {
+        private Duration duration;
+        private Duration duration_in_traffic;
+        private Distance distance;
+        private String start_address;
+        private String end_address;
+    }
+
+    @Data
+    static class Duration {
+        private String text;
+        private int value; // saniye cinsinden
+    }
+
+    @Data
+    static class Distance {
+        private String text;
+        private int value; // metre cinsinden
+    }
+
+    @Data
+    @Builder
+    static class GoogleMapsResponse {
+        private boolean success;
+        private int durationMinutes;
+        private int durationInTrafficMinutes;
+        private int distanceMeters;
+        private LocalDateTime requestTime;
+    }
 }
-
-@lombok.Data
-class Step {
-    private Distance distance;
-    private Duration duration;
-    private String html_instructions;
-}
-
-@lombok.Data
-class DetailedLeg extends Leg {
-    private java.util.List<Step> steps;
-}
-
-
-// ===== GOOGLE MAPS API RESPONSE CLASSES =====
-
-@lombok.Data
-class GoogleMapsApiResponse {
-    private String status;
-    private java.util.List<Route> routes;
-    private String error_message;
-}
-
-@lombok.Data
-class Route {
-    private java.util.List<Leg> legs;
-    private String summary;
-}
-
-@lombok.Data
-class Leg {
-    private Duration duration;
-    private Duration duration_in_traffic;
-    private Distance distance;
-    private String start_address;
-    private String end_address;
-}
-
-@lombok.Data
-class Duration {
-    private String text;
-    private int value; // seconds
-}
-
-@lombok.Data
-class Distance {
-    private String text;
-    private int value; // meters
-}
-
-// ===== RESPONSE WRAPPER =====
-
-@lombok.Data
-@lombok.Builder
-class GoogleMapsResponse {
-    private boolean success;
-    private int durationMinutes;
-    private int durationInTrafficMinutes;
-    private int distanceMeters;
-    private LocalDateTime requestTime;
-}
-
