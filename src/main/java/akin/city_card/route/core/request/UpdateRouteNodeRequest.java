@@ -9,6 +9,5 @@ import java.util.List;
 public class UpdateRouteNodeRequest {
     private Long fromStationId;
     private Long toStationId;
-    private List<TimeSlot> weekdayHours;
-    private List<TimeSlot> weekendHours;
+
 }

@@ -26,23 +26,31 @@
         private LocalDateTime updatedAt;
         private boolean isActive;
         private boolean isDeleted;
-
-        @OneToOne(cascade = CascadeType.ALL)
+        @ManyToOne
+        @JoinColumn(name = "created_by_id")
         private SecurityUser createdBy;
 
-        @OneToOne(cascade = CascadeType.ALL)
+        @ManyToOne
+        @JoinColumn(name = "updated_by_id")
         private SecurityUser updatedBy;
+
+        @ManyToOne
+        @JoinColumn(name = "deleted_by_id")
+        private SecurityUser deletedBy;
 
         private LocalDateTime deletedAt;
 
-        @OneToOne(cascade = CascadeType.ALL)
-        private SecurityUser deletedBy;
+
 
         @ManyToOne
         private Station startStation;
 
         @ManyToOne
         private Station endStation;
+
+
+        @Embedded
+        private RouteSchedule schedule;
 
         @OneToMany(mappedBy = "route", cascade = CascadeType.ALL, orphanRemoval = true)
         private List<RouteStationNode> stationNodes;

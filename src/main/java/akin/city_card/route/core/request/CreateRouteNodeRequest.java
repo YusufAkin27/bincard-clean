@@ -10,6 +10,4 @@ public class CreateRouteNodeRequest {
     private Long fromStationId;
     private Long toStationId;
 
-    private List<TimeSlot> weekdayHours;
-    private List<TimeSlot> weekendHours;
 }

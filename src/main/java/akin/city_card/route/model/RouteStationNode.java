@@ -24,8 +24,5 @@ public class RouteStationNode {
     @ManyToOne
     private Station toStation;
 
-    @Embedded
-    private RouteSchedule schedule;
-
     private int sequenceOrder;
 }

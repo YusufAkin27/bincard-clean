@@ -7,6 +7,7 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.request.CreateRouteRequest;
 import akin.city_card.route.core.request.UpdateRouteRequest;
 import akin.city_card.route.core.response.RouteDTO;
+import akin.city_card.route.core.response.RouteNameDTO;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.service.abstracts.RouteService;
 import akin.city_card.station.exceptions.StationNotFoundException;
@@ -26,31 +27,6 @@ public class RouteController {
 
     private final RouteService routeService;
 
-    @GetMapping("/getAllRoutes")
-   // @JsonView(Views.User.class)
-    public DataResponseMessage<List<RouteDTO>> getAllRoutes() {
-        return routeService.getAllRoutes();
-    }
-
-    @GetMapping("/{id}")
-    @JsonView(Views.Public.class)
-    public DataResponseMessage<RouteDTO> getRouteById(@PathVariable Long id) throws RouteNotFoundException {
-        return routeService.getRouteById(id);
-    }
-
-    @JsonView(Views.Public.class)
-    @GetMapping("/search-by-name")
-    public DataResponseMessage<List<RouteDTO>> searchRoutesByName(@RequestParam String name) {
-        return routeService.searchRoutesByName(name);
-    }
-
-    @JsonView(Views.User.class)
-    @GetMapping("/search-by-station")
-    public DataResponseMessage<List<RouteDTO>> searchRoutesByStationId(@RequestParam Long stationId)
-            throws StationNotFoundException {
-        return routeService.findRoutesByStationId(stationId);
-    }
-
     @PostMapping("/create-route")
     public ResponseMessage createRoute(@AuthenticationPrincipal UserDetails userDetails,
                                        @RequestBody CreateRouteRequest request)
@@ -58,13 +34,6 @@ public class RouteController {
         return routeService.createRoute(userDetails.getUsername(), request);
     }
 
-    @JsonView(Views.Admin.class)
-    @PutMapping("/{id}")
-    public DataResponseMessage<RouteDTO> updateRoute(@AuthenticationPrincipal UserDetails userDetails,
-                                                     @RequestBody UpdateRouteRequest request)
-            throws StationNotFoundException, UnauthorizedAreaException, RouteNotFoundException {
-        return routeService.updateRoute(userDetails.getUsername(), request);
-    }
 
     @DeleteMapping("/{id}")
     public ResponseMessage deleteRoute(@AuthenticationPrincipal UserDetails userDetails,
@@ -73,7 +42,6 @@ public class RouteController {
         return routeService.deleteRoute(userDetails.getUsername(), id);
     }
 
-    @JsonView(Views.Admin.class)
     @PostMapping("/{routeId}/add-station")
     public DataResponseMessage<RouteDTO> addStationToRoute(@AuthenticationPrincipal UserDetails userDetails,
                                                            @PathVariable Long routeId,
@@ -83,7 +51,6 @@ public class RouteController {
         return routeService.addStationToRoute(routeId, afterStationId, newStationId, userDetails.getUsername());
     }
 
-    @JsonView(Views.Admin.class)
     @DeleteMapping("/{routeId}/remove-station")
     public DataResponseMessage<RouteDTO> removeStationFromRoute(@AuthenticationPrincipal UserDetails userDetails,
                                                                 @PathVariable Long routeId,
@@ -91,6 +58,30 @@ public class RouteController {
             throws StationNotFoundException, RouteNotFoundException {
         return routeService.removeStationFromRoute(routeId, stationId, userDetails.getUsername());
     }
+
+
+    @GetMapping("/getAllRoutes")
+    public DataResponseMessage<List<RouteNameDTO>> getAllRoutes() {
+        return routeService.getAllRoutes();
+    }
+
+    @GetMapping("/{id}")
+    public DataResponseMessage<RouteDTO> getRouteById(@PathVariable Long id) throws RouteNotFoundException {
+        return routeService.getRouteById(id);
+    }
+
+    @GetMapping("/search-by-name")
+    public DataResponseMessage<List<RouteNameDTO>> searchRoutesByName(@RequestParam String name) {
+        return routeService.searchRoutesByName(name);
+    }
+
+    @GetMapping("/search-by-station")
+    public DataResponseMessage<List<RouteNameDTO>> searchRoutesByStationId(@RequestParam Long stationId)
+            throws StationNotFoundException {
+        return routeService.findRoutesByStationId(stationId);
+    }
+
+
 }
 
 

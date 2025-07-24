@@ -7,9 +7,8 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.converter.RouteConverter;
 import akin.city_card.route.core.request.CreateRouteNodeRequest;
 import akin.city_card.route.core.request.CreateRouteRequest;
-import akin.city_card.route.core.request.UpdateRouteNodeRequest;
-import akin.city_card.route.core.request.UpdateRouteRequest;
 import akin.city_card.route.core.response.RouteDTO;
+import akin.city_card.route.core.response.RouteNameDTO;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteSchedule;
 import akin.city_card.route.model.RouteStationNode;
@@ -39,45 +38,50 @@ public class RouteManager implements RouteService {
     private final StationRepository stationRepository;
 
     @Override
-    public DataResponseMessage<List<RouteDTO>> searchRoutesByName(String name) {
+    public DataResponseMessage<List<RouteNameDTO>> searchRoutesByName(String name) {
         List<Route> routes = routeRepository.searchByKeyword(name);
-        List<RouteDTO> dtos = routes.stream()
-                .map(routeConverter::toRouteDTO)
+        List<RouteNameDTO> dtos = routes.stream()
+                .filter(route ->route.isActive())
+                .filter(route -> !route.isDeleted())
+                .filter(route -> !route.getStationNodes().isEmpty())
+                .map(routeConverter::toRouteNameDTO)
                 .toList();
 
         return new DataResponseMessage<>("Arama sonuçları", true, dtos);
     }
 
     @Override
-    public DataResponseMessage<List<RouteDTO>> findRoutesByStationId(Long stationId) throws StationNotFoundException {
+    public DataResponseMessage<List<RouteNameDTO>> findRoutesByStationId(Long stationId) throws StationNotFoundException {
         Station station = stationRepository.findById(stationId)
                 .orElseThrow(StationNotFoundException::new);
 
         List<Route> routes = routeRepository.findRoutesByStation(stationId);
 
-        return new DataResponseMessage<>("Duraktan geçen rotalar", true, routes.stream().map(routeConverter::toRouteDTO).toList());
+        return new DataResponseMessage<>("Duraktan geçen rotalar", true, routes.stream().map(routeConverter::toRouteNameDTO).toList());
     }
 
 
     @Override
-    public ResponseMessage createRoute(String username, CreateRouteRequest request) throws UnauthorizedAreaException, StationNotFoundException {
-        // 1. Kullanıcıyı getir
-        Optional<SecurityUser> securityUser = securityUserRepository.findByUserNumber(username);
+    public ResponseMessage createRoute(String username, CreateRouteRequest request)
+            throws UnauthorizedAreaException, StationNotFoundException {
 
-        // 2. Yetki kontrolü
-        if (!securityUser.get().getRoles().contains(Role.ADMIN) &&
-                !securityUser.get().getRoles().contains(Role.SUPERADMIN)) {
+        // 1. Kullanıcı doğrulama
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username)
+                .orElseThrow(UnauthorizedAreaException::new);
+
+        boolean isAdmin = securityUser.getRoles().contains(Role.ADMIN) ||
+                securityUser.getRoles().contains(Role.SUPERADMIN);
+        if (!isAdmin) {
             throw new UnauthorizedAreaException();
         }
 
-        // 3. Başlangıç ve bitiş duraklarını kontrol et
+        // 2. Başlangıç ve bitiş duraklarının kontrolü
         Station startStation = stationRepository.findById(request.getStartStationId())
                 .orElseThrow(StationNotFoundException::new);
-
         Station endStation = stationRepository.findById(request.getEndStationId())
                 .orElseThrow(StationNotFoundException::new);
 
-        // 4. Route nesnesini oluştur
+        // 3. Route nesnesi oluşturuluyor
         Route route = new Route();
         route.setName(request.getRouteName());
         route.setStartStation(startStation);
@@ -86,28 +90,30 @@ public class RouteManager implements RouteService {
         route.setUpdatedAt(LocalDateTime.now());
         route.setActive(true);
         route.setDeleted(false);
-        route.setCreatedBy(securityUser.get());
-        route.setUpdatedBy(securityUser.get());
+        route.setCreatedBy(securityUser);
+        route.setUpdatedBy(securityUser);
 
-        // 5. Node'ları oluştur
+        // 4. RouteSchedule set ediliyor
+        RouteSchedule schedule = new RouteSchedule();
+        schedule.setWeekdayHours(request.getWeekdayHours());
+        schedule.setWeekendHours(request.getWeekendHours());
+        route.setSchedule(schedule);
+
+        // 5. RouteStationNode listesi hazırlanıyor
         List<RouteStationNode> nodeList = new ArrayList<>();
         int order = 0;
+
         for (CreateRouteNodeRequest nodeRequest : request.getRouteNodes()) {
             Station fromStation = stationRepository.findById(nodeRequest.getFromStationId())
                     .orElseThrow(StationNotFoundException::new);
             Station toStation = stationRepository.findById(nodeRequest.getToStationId())
                     .orElseThrow(StationNotFoundException::new);
 
-            RouteSchedule schedule = new RouteSchedule();
-            schedule.setWeekdayHours(nodeRequest.getWeekdayHours());
-            schedule.setWeekendHours(nodeRequest.getWeekendHours());
-
             RouteStationNode node = new RouteStationNode();
             node.setRoute(route);
             node.setFromStation(fromStation);
             node.setToStation(toStation);
             node.setSequenceOrder(order++);
-            node.setSchedule(schedule);
 
             nodeList.add(node);
         }
@@ -116,70 +122,13 @@ public class RouteManager implements RouteService {
 
         routeRepository.save(route);
 
-        return new ResponseMessage("Route created successfully.", true);
+        return new ResponseMessage("Rota başarıyla oluşturuldu.", true);
+
+
     }
 
 
-    @Override
-    public DataResponseMessage<RouteDTO> updateRoute(String username, UpdateRouteRequest request) throws UnauthorizedAreaException, StationNotFoundException, RouteNotFoundException {
-        Optional<SecurityUser> securityUser = securityUserRepository.findByUserNumber(username);
 
-        if (!securityUser.get().getRoles().contains(Role.ADMIN) &&
-                !securityUser.get().getRoles().contains(Role.SUPERADMIN)) {
-            throw new UnauthorizedAreaException();
-        }
-
-        // 1. Mevcut route'u al
-        Route route = routeRepository.findById(request.getRouteId())
-                .orElseThrow(RouteNotFoundException::new);
-
-        // 2. Durakları al
-        Station startStation = stationRepository.findById(request.getStartStationId())
-                .orElseThrow(StationNotFoundException::new);
-
-        Station endStation = stationRepository.findById(request.getEndStationId())
-                .orElseThrow(StationNotFoundException::new);
-
-        // 3. Route bilgilerini güncelle
-        route.setName(request.getRouteName());
-        route.setStartStation(startStation);
-        route.setEndStation(endStation);
-        route.setUpdatedAt(LocalDateTime.now());
-        route.setUpdatedBy(securityUser.get());
-
-        // 4. Eski node'ları temizle
-        route.getStationNodes().clear(); // orphanRemoval = true olmalı
-        List<RouteStationNode> newNodeList = new ArrayList<>();
-
-        int order = 0;
-        for (UpdateRouteNodeRequest nodeReq : request.getRouteNodes()) {
-            Station fromStation = stationRepository.findById(nodeReq.getFromStationId())
-                    .orElseThrow(StationNotFoundException::new);
-            Station toStation = stationRepository.findById(nodeReq.getToStationId())
-                    .orElseThrow(StationNotFoundException::new);
-
-            RouteSchedule schedule = new RouteSchedule(
-                    nodeReq.getWeekdayHours(),
-                    nodeReq.getWeekendHours()
-            );
-
-            RouteStationNode node = new RouteStationNode();
-            node.setRoute(route);
-            node.setFromStation(fromStation);
-            node.setToStation(toStation);
-            node.setSequenceOrder(order++);
-            node.setSchedule(schedule);
-
-            newNodeList.add(node);
-        }
-
-        route.setStationNodes(newNodeList);
-
-        Route updatedRoute = routeRepository.save(route);
-
-        RouteDTO dto = routeConverter.toRouteDTO(updatedRoute);
-        return new DataResponseMessage<>("Route updated successfully", true, dto);
-    }
 
     @Override
     @Transactional
@@ -206,16 +155,16 @@ public class RouteManager implements RouteService {
     }
 
     @Override
-    public DataResponseMessage<List<RouteDTO>> getAllRoutes() {
-        List<RouteDTO> routeDTOs = routeRepository.findAll().stream()
-                .map(routeConverter::toRouteDTO)
+    public DataResponseMessage<List<RouteNameDTO>> getAllRoutes() {
+        List<RouteNameDTO> activeRoutes = routeRepository.findAll().stream()
+                .filter(route -> route.isActive() && !route.isDeleted())
+                .filter(route -> route.getStationNodes() != null && !route.getStationNodes().isEmpty())
+                .map(routeConverter::toRouteNameDTO)
                 .toList();
 
-        for (RouteDTO dto : routeDTOs) {
-            System.out.println(dto.getName());
-        }
-        return new DataResponseMessage<>("rotalar", true, routeDTOs);
+        return new DataResponseMessage<>("Aktif rotalar başarıyla listelendi.", true, activeRoutes);
     }
+
 
 
     @Override
@@ -244,14 +193,12 @@ public class RouteManager implements RouteService {
         node1.setRoute(route);
         node1.setFromStation(afterStation);
         node1.setToStation(newStation);
-        node1.setSchedule(new RouteSchedule());
         node1.setSequenceOrder(oldEdge.getSequenceOrder());
 
         RouteStationNode node2 = new RouteStationNode();
         node2.setRoute(route);
         node2.setFromStation(newStation);
         node2.setToStation(toStation);
-        node2.setSchedule(new RouteSchedule());
         node2.setSequenceOrder(oldEdge.getSequenceOrder() + 1);
 
         route.getStationNodes().add(node1);
@@ -293,7 +240,6 @@ public class RouteManager implements RouteService {
             newNode.setRoute(route);
             newNode.setFromStation(incoming.getFromStation());
             newNode.setToStation(outgoing.getToStation());
-            newNode.setSchedule(new RouteSchedule());
             newNode.setSequenceOrder(incoming.getSequenceOrder());
 
             route.getStationNodes().remove(incoming);

@@ -1,10 +1,7 @@
 package akin.city_card.route.core.converter;
 
 import akin.city_card.bus.core.converter.BusConverter;
-import akin.city_card.route.core.response.PublicRouteDTO;
-import akin.city_card.route.core.response.RouteDTO;
-import akin.city_card.route.core.response.RouteScheduleDTO;
-import akin.city_card.route.core.response.RouteStationNodeDTO;
+import akin.city_card.route.core.response.*;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteSchedule;
 import akin.city_card.route.model.RouteStationNode;
@@ -34,6 +31,17 @@ public class RouteConverterImpl implements RouteConverter {
                 .endStation(stationConverter.toDTO(route.getEndStation()))
                 .stationNodes(toStationNodeDTOList(route.getStationNodes()))
                 .busDTOS(busConverter.toBusDTOList(route.getBuses()))
+                .build();
+    }
+
+    @Override
+    public RouteNameDTO toRouteNameDTO(Route route) {
+        return RouteNameDTO.builder()
+                .id(route.getId())
+                .name(route.getName())
+                .endStationName(route.getEndStation().getName())
+                .startStationName(route.getStartStation().getName())
+                .routeSchedule(toScheduleDTO(route.getSchedule()))
                 .build();
     }
 
