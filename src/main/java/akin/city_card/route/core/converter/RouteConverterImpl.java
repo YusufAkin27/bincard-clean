@@ -5,6 +5,7 @@ import akin.city_card.route.core.response.*;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteSchedule;
 import akin.city_card.route.model.RouteStationNode;
+import akin.city_card.route.service.concretes.RouteWithNextBusDTO;
 import akin.city_card.station.core.converter.StationConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -54,6 +55,17 @@ public class RouteConverterImpl implements RouteConverter {
                 .id(route.getId())
                 .build();
 
+    }
+
+    @Override
+    public RouteWithNextBusDTO toRouteWithNextBusDTO(Route route) {
+
+        return RouteWithNextBusDTO.builder()
+                .endStationName(route.getEndStation().getName())
+                .startStationName(route.getStartStation().getName())
+                .id(route.getId())
+                .name(route.getName())
+                .build();
     }
 
     @Override

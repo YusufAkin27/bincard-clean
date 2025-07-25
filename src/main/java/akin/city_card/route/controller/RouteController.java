@@ -12,6 +12,7 @@ import akin.city_card.route.core.response.RouteSuggestionResponse;
 import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
 import akin.city_card.route.exceptions.RouteNotActiveException;
 import akin.city_card.route.service.abstracts.RouteService;
+import akin.city_card.route.service.concretes.RouteWithNextBusDTO;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -77,9 +78,9 @@ public class RouteController {
     }
 
     @GetMapping("/search-by-station")
-    public DataResponseMessage<List<RouteNameDTO>> searchRoutesByStationId(@RequestParam Long stationId)
+    public DataResponseMessage<List<RouteWithNextBusDTO>> searchRoutesByStationId(@RequestParam Long stationId)
             throws StationNotFoundException {
-        return routeService.findRoutesByStationId(stationId);
+        return routeService.findRoutesWithNextBus(stationId);
     }
 
     @PostMapping("/add-favorite")

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -37,6 +38,31 @@ public class GoogleMapsService {
      * Google Maps Directions API kullanarak iki nokta arası seyahat süresini hesaplar
      * Trafik durumunu da hesaba katar
      */
+
+
+    public Integer getEstimatedTimeInMinutes(double originLat, double originLng, double destLat, double destLng) {
+        String url = UriComponentsBuilder.fromHttpUrl(directionsApiUrl)
+                .queryParam("origin", originLat + "," + originLng)
+                .queryParam("destination", destLat + "," + destLng)
+                .queryParam("key", apiKey)
+                .toUriString();
+
+        try {
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+
+            JsonNode duration = root.path("routes").get(0)
+                    .path("legs").get(0)
+                    .path("duration")
+                    .path("value"); // saniye cinsinden
+
+            return duration.asInt() / 60; // dakika
+        } catch (Exception e) {
+            log.error("ETA hesaplanamadı", e);
+            return null;
+        }
+    }
+
     public GoogleMapsResponse getDirections(double originLat, double originLng,
                                             double destLat, double destLng) {
         try {

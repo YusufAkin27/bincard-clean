@@ -15,7 +15,4 @@ public interface BusRideRepository extends JpaRepository<BusRide,Long> {
 
     List<BusRide> findByBusDriverUserNumberAndStatus(String username, RideStatus rideStatus);
 
-    BusRide findTopByBusCardOrderByBoardingTimeDesc(BusCard card);
-
-    List<BusRide> findByBusId(Long busId);
 }

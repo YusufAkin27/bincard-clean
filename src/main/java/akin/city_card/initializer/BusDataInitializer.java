@@ -31,7 +31,6 @@ public class BusDataInitializer implements ApplicationRunner {
     private final StationRepository stationRepository;
 
     private final Random random = new Random();
-
     @Override
     public void run(ApplicationArguments args) {
         if (busRepository.count() > 0) return;
@@ -40,7 +39,6 @@ public class BusDataInitializer implements ApplicationRunner {
         List<Route> routes = routeRepository.findAll();
         List<Station> stations = stationRepository.findAll();
 
-        // ❗ Eğer sürücüler hazır değilse hiçbir şey yapma
         if (drivers.size() < 100) {
             System.out.println("🚫 Yeterli sürücü bulunamadı. Otobüsler oluşturulmadı.");
             return;
@@ -48,12 +46,12 @@ public class BusDataInitializer implements ApplicationRunner {
 
         for (int i = 0; i < 100; i++) {
             Driver driver = drivers.get(i);
-            Route route = routes.get(random.nextInt(routes.size()));
+            Route outboundRoute = routes.get(random.nextInt(routes.size()));
             Station startStation = stations.get(random.nextInt(stations.size()));
 
             Bus bus = new Bus();
             bus.setDriver(driver);
-            bus.setRoute(route);
+            bus.setRoute(outboundRoute);
             bus.setNumberPlate(generatePlate(i));
             bus.setFare(10.0 + random.nextDouble(5.0));
             bus.setCapacity(30 + random.nextInt(30));

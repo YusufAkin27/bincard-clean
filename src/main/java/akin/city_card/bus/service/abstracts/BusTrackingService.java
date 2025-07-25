@@ -40,7 +40,7 @@ public class BusTrackingService {
         log.info("Calculating bus arrivals for station: {} and route: {}", stationId, routeId);
 
         // 1. Rotaya ait aktif araçları getir
-        List<Bus> activeBuses = busRepository.findByRouteIdAndActiveTrue(routeId);
+        List<Bus> activeBuses = busRepository.findActiveBusesByRoute(routeId);
         if (activeBuses.isEmpty()) {
             log.warn("No active buses found for routeId: {}", routeId);
             return List.of(); // boş liste dön

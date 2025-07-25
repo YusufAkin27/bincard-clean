@@ -11,6 +11,7 @@ import akin.city_card.route.core.request.RouteSuggestionRequest;
 import akin.city_card.route.core.response.RouteSuggestionResponse;
 import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
 import akin.city_card.route.exceptions.RouteNotActiveException;
+import akin.city_card.route.service.concretes.RouteWithNextBusDTO;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 
@@ -20,7 +21,6 @@ public interface RouteService {
 
     DataResponseMessage<List<RouteNameDTO>> searchRoutesByName(String name);
 
-    DataResponseMessage<List<RouteNameDTO>> findRoutesByStationId(Long stationId) throws StationNotFoundException;
 
     ResponseMessage createRoute(String username, CreateRouteRequest request) throws UnauthorizedAreaException, StationNotFoundException;
 
@@ -43,4 +43,6 @@ public interface RouteService {
     DataResponseMessage<List<RouteNameDTO>> favotiteRoutes(String username) throws UserNotFoundException;
 
     DataResponseMessage<RouteSuggestionResponse> suggestRoute(RouteSuggestionRequest request);
+
+    DataResponseMessage<List<RouteWithNextBusDTO>> findRoutesWithNextBus(Long stationId) throws StationNotFoundException;
 }

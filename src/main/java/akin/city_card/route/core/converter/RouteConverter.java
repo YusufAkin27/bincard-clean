@@ -4,6 +4,7 @@ import akin.city_card.route.core.response.*;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteSchedule;
 import akin.city_card.route.model.RouteStationNode;
+import akin.city_card.route.service.concretes.RouteWithNextBusDTO;
 
 import java.util.List;
 
@@ -16,4 +17,6 @@ public interface RouteConverter {
     RouteNameDTO toRouteNameDTO(Route route);
 
     PublicRouteDTO toPublicRoute(Route route);
+
+    RouteWithNextBusDTO toRouteWithNextBusDTO(Route route);
 }

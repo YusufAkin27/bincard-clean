@@ -1,6 +1,7 @@
 package akin.city_card.route.service.concretes;
 
 import akin.city_card.bus.exceptions.RouteNotFoundException;
+import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.service.abstracts.GoogleMapsService;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
@@ -8,6 +9,7 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.converter.RouteConverter;
 import akin.city_card.route.core.request.CreateRouteNodeRequest;
 import akin.city_card.route.core.request.CreateRouteRequest;
+import akin.city_card.route.core.response.NextBusDTO;
 import akin.city_card.route.core.response.RouteDTO;
 import akin.city_card.route.core.response.RouteNameDTO;
 import akin.city_card.route.core.request.RouteSuggestionRequest;
@@ -63,15 +65,62 @@ public class RouteManager implements RouteService {
         return new DataResponseMessage<>("Arama sonuçları", true, dtos);
     }
 
+
     @Override
-    public DataResponseMessage<List<RouteNameDTO>> findRoutesByStationId(Long stationId) throws StationNotFoundException {
+    public DataResponseMessage<List<RouteWithNextBusDTO>> findRoutesWithNextBus(Long stationId) throws StationNotFoundException {
         Station station = stationRepository.findById(stationId)
                 .orElseThrow(StationNotFoundException::new);
 
         List<Route> routes = routeRepository.findRoutesByStation(stationId);
+        List<RouteWithNextBusDTO> result = new ArrayList<>();
 
-        return new DataResponseMessage<>("Duraktan geçen rotalar", true, routes.stream().map(routeConverter::toRouteNameDTO).toList());
+        for (Route route : routes) {
+            // Hem gidiş hem dönüş otobüslerini birleştir
+            List<Bus> buses = new ArrayList<>();
+            if (route.getBuses() != null) {
+                buses.addAll(route.getBuses());
+            }
+
+            // Filtrele: aktif ve silinmemiş otobüsler
+            buses = buses.stream()
+                    .filter(Bus::isActive)
+                    .filter(bus -> !bus.isDeleted())
+                    .toList();
+
+            Bus fastestBus = null;
+            Integer minEta = Integer.MAX_VALUE;
+
+            for (Bus bus : buses) {
+                Double lat = bus.getCurrentLatitude();
+                Double lon = bus.getCurrentLongitude();
+
+                if (lat == null || lon == null) continue;
+
+                Integer eta = googleMapsService.getEstimatedTimeInMinutes(
+                        lat, lon,
+                        station.getLocation().getLatitude(),
+                        station.getLocation().getLongitude()
+                );
+
+                if (eta != null && eta < 60 && eta < minEta) {
+                    minEta = eta;
+                    fastestBus = bus;
+                }
+            }
+
+            RouteWithNextBusDTO dto = routeConverter.toRouteWithNextBusDTO(route);
+            if (fastestBus != null) {
+                dto.setNextBus(new NextBusDTO(fastestBus.getNumberPlate(), minEta));
+            } else {
+                dto.setNextBus(null);
+            }
+
+            result.add(dto);
+        }
+
+        return new DataResponseMessage<>("Duraktan geçen rotalar", true, result);
     }
+
 
 
     @Override

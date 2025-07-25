@@ -27,6 +27,7 @@ public class Bus {
     private String numberPlate;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "route_id")
     private Route route;
 
     @OneToOne(optional = false, fetch = FetchType.LAZY)
@@ -39,7 +40,7 @@ public class Bus {
     private double fare;
 
     @Column(nullable = false)
-    private boolean deleted=false;
+    private boolean deleted = false;
 
     @Enumerated(EnumType.STRING)
     private BusStatus status = BusStatus.CALISIYOR;
@@ -63,8 +64,6 @@ public class Bus {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-
 
     @ManyToOne(fetch = FetchType.LAZY)
     private SecurityUser createdBy;
