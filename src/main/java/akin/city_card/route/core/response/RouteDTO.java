@@ -1,3 +1,4 @@
+// RouteDTO.java
 package akin.city_card.route.core.response;
 
 import akin.city_card.bus.core.response.BusDTO;
@@ -24,6 +25,18 @@ public class RouteDTO {
     @JsonView(Views.Public.class)
     private String name;
 
+    @JsonView(Views.Public.class)
+    private String code;
+
+    @JsonView(Views.Public.class)
+    private String description;
+
+    @JsonView(Views.Public.class)
+    private String routeType;
+
+    @JsonView(Views.Public.class)
+    private String color;
+
     @JsonView(Views.Admin.class)
     private LocalDateTime createdAt;
 
@@ -36,9 +49,6 @@ public class RouteDTO {
     @JsonView(Views.SuperAdmin.class)
     private boolean isDeleted;
 
-    @JsonView(Views.SuperAdmin.class)
-    private LocalDateTime deletedAt;
-
     @JsonView(Views.User.class)
     private StationDTO startStation;
 
@@ -46,8 +56,17 @@ public class RouteDTO {
     private StationDTO endStation;
 
     @JsonView(Views.User.class)
-    private List<RouteStationNodeDTO> stationNodes;
+    private Integer estimatedDurationMinutes;
+
+    @JsonView(Views.User.class)
+    private Double totalDistanceKm;
+
+    @JsonView(Views.User.class)
+    private RouteScheduleDTO schedule;
+
+    @JsonView(Views.User.class)
+    private List<RouteDirectionDTO> directions;
 
     @JsonView(Views.Admin.class)
-    private List<BusDTO> busDTOS;
+    private List<BusDTO> assignedBuses;
 }

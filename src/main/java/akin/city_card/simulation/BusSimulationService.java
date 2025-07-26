@@ -2,7 +2,10 @@ package akin.city_card.simulation;
 
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.repository.BusRepository;
+import akin.city_card.paymentPoint.model.Location;
+import akin.city_card.route.model.RouteDirection;
 import akin.city_card.route.model.RouteStationNode;
+import akin.city_card.station.model.Station;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -78,7 +82,7 @@ public class BusSimulationService {
         try {
             initializeExecutorService();
 
-            List<Bus> activeBuses = busRepository.findByActiveTrueAndDeletedFalse();
+            List<Bus> activeBuses = busRepository.findAllByIsActiveFalseAndIsDeletedFalse();
             log.info("Starting simulation for {} active buses", activeBuses.size());
 
             for (Bus bus : activeBuses) {
@@ -98,41 +102,44 @@ public class BusSimulationService {
         try {
             initializeExecutorService();
 
-            if (runningSimulations.containsKey(bus.getId())) {
-                log.warn("Simulation already running for bus: {}", bus.getId());
+            Long busId = bus.getId();
+            String plate = bus.getNumberPlate();
+
+            if (runningSimulations.containsKey(busId)) {
+                log.warn("⏱️ Simulation already running for bus: {} ({})", busId, plate);
                 return;
             }
 
-            if (bus.getRoute() == null) {
-                log.warn("Bus {} has no route assigned. Skipping simulation.", bus.getId());
+            RouteDirection direction = bus.getCurrentDirection();
+            if (direction == null) {
+                log.warn("🚫 Bus {} ({}) has no assigned outgoing route.", busId, plate);
                 return;
             }
 
-            // Force initialize the lazy collection within transaction
-            List<RouteStationNode> nodes = bus.getRoute().getStationNodes();
+            List<RouteStationNode> nodes = direction.getStationNodes();
             if (nodes == null || nodes.isEmpty()) {
-                log.warn("No route nodes found for bus: {} ({})", bus.getId(), bus.getNumberPlate());
+                log.warn("🚫 No station nodes found for bus: {} ({})", busId, plate);
                 return;
             }
 
+            // Force-fetch locations for lazy-loading
             nodes.forEach(node -> {
-                if (node.getFromStation() != null && node.getFromStation().getLocation() != null) {
-                    node.getFromStation().getLocation().getLatitude();
-                }
-                if (node.getToStation() != null && node.getToStation().getLocation() != null) {
-                    node.getToStation().getLocation().getLatitude();
-                }
+                Optional.ofNullable(node.getFromStation())
+                        .map(Station::getLocation)
+                        .ifPresent(Location::getLatitude);
+                Optional.ofNullable(node.getToStation())
+                        .map(Station::getLocation)
+                        .ifPresent(Location::getLatitude);
             });
 
-            // Validate that route nodes have valid stations
-            boolean hasValidNodes = nodes.stream()
-                    .anyMatch(node -> node.getFromStation() != null &&
-                            node.getToStation() != null &&
-                            node.getFromStation().getLocation() != null &&
-                            node.getToStation().getLocation() != null);
+            // Check if there's at least one valid node
+            boolean hasValidNodes = nodes.stream().anyMatch(node ->
+                    node.getFromStation() != null && node.getFromStation().getLocation() != null &&
+                            node.getToStation() != null && node.getToStation().getLocation() != null
+            );
 
             if (!hasValidNodes) {
-                log.warn("No valid route nodes found for bus: {} ({})", bus.getId(), bus.getNumberPlate());
+                log.warn("🚫 No valid route nodes for simulation. Bus: {} ({})", busId, plate);
                 return;
             }
 
@@ -151,11 +158,11 @@ public class BusSimulationService {
                     TimeUnit.SECONDS
             );
 
-            runningSimulations.put(bus.getId(), future);
-            log.info("Started simulation for bus: {} ({})", bus.getId(), bus.getNumberPlate());
+            runningSimulations.put(busId, future);
+            log.info("✅ Started simulation for bus: {} ({})", busId, plate);
 
         } catch (Exception e) {
-            log.error("Failed to start simulation for bus: {} ({})", bus.getId(),
+            log.error("❌ Error while starting simulation for bus: {} ({})", bus.getId(),
                     bus.getNumberPlate() != null ? bus.getNumberPlate() : "N/A", e);
         }
     }

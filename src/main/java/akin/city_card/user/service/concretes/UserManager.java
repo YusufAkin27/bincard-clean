@@ -869,31 +869,46 @@ public class UserManager implements UserService {
     }
 
     @Override
-    public ResponseMessage addGeoAlert(String username, GeoAlertRequest alertRequest) throws UserNotFoundException, RouteNotFoundException, StationNotFoundException, RouteNotFoundStationException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        Optional<Route> route = routeRepository.findById(alertRequest.getRouteId());
-        if (route.isEmpty()) {
-            throw new RouteNotFoundException();
-        }
-        Optional<Station> station = stationRepository.findById(alertRequest.getStationId());
-        if (station.isEmpty()) {
-            throw new StationNotFoundException();
-        }
-        if (!route.get().getStationNodes().isEmpty() && !route.get().getStationNodes().contains(station.get())){
+    public ResponseMessage addGeoAlert(String username, GeoAlertRequest alertRequest)
+            throws UserNotFoundException, RouteNotFoundException, StationNotFoundException, RouteNotFoundStationException {
+
+        // Kullanıcı kontrolü
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
+
+        // Rota kontrolü
+        Route route = routeRepository.findById(alertRequest.getRouteId())
+                .orElseThrow(RouteNotFoundException::new);
+
+        // İstasyon kontrolü
+        Station station = stationRepository.findById(alertRequest.getStationId())
+                .orElseThrow(StationNotFoundException::new);
+
+        // İstasyon bu rotaya ait mi kontrolü
+        boolean stationExistsInRoute = route.getDirections().stream()
+                .flatMap(dir -> dir.getStationNodes().stream())
+                .anyMatch(node -> node.getFromStation().equals(station) || node.getToStation().equals(station));
+
+        if (!stationExistsInRoute) {
             throw new RouteNotFoundStationException();
         }
+
+        // Uyarı oluşturuluyor
         GeoAlert geoAlert = new GeoAlert();
         geoAlert.setUser(user);
+        geoAlert.setRoute(route);
+        geoAlert.setStation(station);
         geoAlert.setAlertName(alertRequest.getAlertName());
-        geoAlert.setActive(true);
-        geoAlert.setRoute(route.get());
-        geoAlert.setStation(station.get());
         geoAlert.setNotifyBeforeMinutes(alertRequest.getNotifyBeforeMinutes());
         geoAlert.setRadiusMeters(alertRequest.getRadiusMeters());
+        geoAlert.setActive(true);
         geoAlert.setCreatedAt(LocalDateTime.now());
         geoAlert.setUpdatedAt(LocalDateTime.now());
+
+        // Kullanıcının uyarı listesine ekle (eğer cascade varsa otomatik kaydedilir)
         user.getGeoAlerts().add(geoAlert);
-        return new ResponseMessage("araç konum uyarısı eklendi", true);
+
+        return new ResponseMessage(" Araç konum uyarısı başarıyla eklendi.", true);
     }
 
     @Override

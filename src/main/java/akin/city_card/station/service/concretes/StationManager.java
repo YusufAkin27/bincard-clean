@@ -337,19 +337,23 @@ public class StationManager implements StationService {
 
         List<Route> allRoutes = routeRepository.findAll();
 
-        Set<Route> matchedRoutes = allRoutes.stream()
-                .filter(route -> route.getStationNodes().stream()
-                        .anyMatch(node -> node.getFromStation().getId().equals(station.getId()))
-                )
+        List<Route> matchedRoutes = allRoutes.stream()
                 .filter(route -> route.isActive() && !route.isDeleted())
-                .collect(Collectors.toSet());
+                .filter(route -> route.getDirections().stream()
+                        .flatMap(direction -> direction.getStationNodes().stream())
+                        .anyMatch(node ->
+                                node.getFromStation().getId().equals(stationId) ||
+                                        node.getToStation().getId().equals(stationId))
+                )
+                .toList();
 
         List<PublicRouteDTO> result = matchedRoutes.stream()
                 .map(routeConverter::toPublicRoute)
                 .toList();
 
-        return new DataResponseMessage<>("Rotalar başarıyla listelendi.", true, result);
+        return new DataResponseMessage<>(" İstasyona ait rotalar başarıyla listelendi.", true, result);
     }
+
 
     @Override
     public DataResponseMessage<PageDTO<StationDTO>> NearbyStations(double userLat, double userLon, int page, int size) {

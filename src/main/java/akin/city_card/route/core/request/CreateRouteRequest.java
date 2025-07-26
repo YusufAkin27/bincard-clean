@@ -5,15 +5,29 @@ import lombok.Data;
 
 import java.util.List;
 
+
+import akin.city_card.route.model.RouteType;
+
+
 @Data
 public class CreateRouteRequest {
     private String routeName;
+    private String routeCode;
+    private String description;
+    private RouteType routeType;
+    private String color;
     private Long startStationId;
     private Long endStationId;
+    private Integer estimatedDurationMinutes;
+    private Double totalDistanceKm;
 
-
+    // Schedule
     private List<TimeSlot> weekdayHours;
     private List<TimeSlot> weekendHours;
 
-    private List<CreateRouteNodeRequest> routeNodes;
+    // Gidiş yönü durakları (sıralı)
+    private List<CreateRouteStationRequest> outgoingStations;
+
+    // Dönüş yönü durakları (sıralı) - opsiyonel, verilmezse otomatik ters sıra
+    private List<CreateRouteStationRequest> returnStations;
 }

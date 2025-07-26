@@ -5,14 +5,12 @@ import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.request.CreateRouteRequest;
-import akin.city_card.route.core.response.RouteDTO;
-import akin.city_card.route.core.response.RouteNameDTO;
+import akin.city_card.route.core.response.*;
 import akin.city_card.route.core.request.RouteSuggestionRequest;
-import akin.city_card.route.core.response.RouteSuggestionResponse;
 import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
 import akin.city_card.route.exceptions.RouteNotActiveException;
+import akin.city_card.route.model.DirectionType;
 import akin.city_card.route.service.abstracts.RouteService;
-import akin.city_card.route.service.concretes.RouteWithNextBusDTO;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -29,14 +27,19 @@ public class RouteController {
 
     private final RouteService routeService;
 
-    @PostMapping("/create-route")
-    public ResponseMessage createRoute(@AuthenticationPrincipal UserDetails userDetails,
-                                       @RequestBody CreateRouteRequest request)
+    /**
+     * İki yönlü rota oluşturma
+     */
+    @PostMapping("/create-bidirectional")
+    public ResponseMessage createBidirectionalRoute(@AuthenticationPrincipal UserDetails userDetails,
+                                                    @RequestBody CreateRouteRequest request)
             throws StationNotFoundException, UnauthorizedAreaException {
-        return routeService.createRoute(userDetails.getUsername(), request);
+        return routeService.createBidirectionalRoute(userDetails.getUsername(), request);
     }
 
-
+    /**
+     * Rotayı silme
+     */
     @DeleteMapping("/{id}")
     public ResponseMessage deleteRoute(@AuthenticationPrincipal UserDetails userDetails,
                                        @PathVariable Long id)
@@ -44,68 +47,124 @@ public class RouteController {
         return routeService.deleteRoute(userDetails.getUsername(), id);
     }
 
-    @PostMapping("/{routeId}/add-station")
-    public DataResponseMessage<RouteDTO> addStationToRoute(@AuthenticationPrincipal UserDetails userDetails,
-                                                           @PathVariable Long routeId,
-                                                           @RequestParam Long afterStationId,
-                                                           @RequestParam Long newStationId)
+    /**
+     * Belirli yöne durak ekleme
+     */
+    @PostMapping("/{routeId}/direction/{directionType}/add-station")
+    public DataResponseMessage<RouteDTO> addStationToDirection(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long routeId,
+            @PathVariable DirectionType directionType,
+            @RequestParam Long afterStationId,
+            @RequestParam Long newStationId)
             throws StationNotFoundException, RouteNotFoundException {
-        return routeService.addStationToRoute(routeId, afterStationId, newStationId, userDetails.getUsername());
+        return routeService.addStationToDirection(routeId, directionType, afterStationId,
+                newStationId, userDetails.getUsername());
     }
 
-    @DeleteMapping("/{routeId}/remove-station")
-    public DataResponseMessage<RouteDTO> removeStationFromRoute(@AuthenticationPrincipal UserDetails userDetails,
-                                                                @PathVariable Long routeId,
-                                                                @RequestParam Long stationId)
+    /**
+     * Belirli yönden durak çıkarma
+     */
+    @DeleteMapping("/{routeId}/direction/{directionType}/remove-station")
+    public DataResponseMessage<RouteDTO> removeStationFromDirection(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long routeId,
+            @PathVariable DirectionType directionType,
+            @RequestParam Long stationId)
             throws StationNotFoundException, RouteNotFoundException {
-        return routeService.removeStationFromRoute(routeId, stationId, userDetails.getUsername());
+        return routeService.removeStationFromDirection(routeId, directionType, stationId,
+                userDetails.getUsername());
     }
 
-
-    @GetMapping("/getAllRoutes")
+    /**
+     * Tüm aktif rotaları listeleme
+     */
+    @GetMapping("/all")
     public DataResponseMessage<List<RouteNameDTO>> getAllRoutes() {
         return routeService.getAllRoutes();
     }
 
+    /**
+     * Rota detaylarını getirme
+     */
     @GetMapping("/{id}")
-    public DataResponseMessage<RouteDTO> getRouteById(@PathVariable Long id) throws RouteNotFoundException {
+    public DataResponseMessage<RouteDTO> getRouteById(@PathVariable Long id)
+            throws RouteNotFoundException {
         return routeService.getRouteById(id);
     }
 
-    @GetMapping("/search-by-name")
+    /**
+     * Rota yönlerini getirme
+     */
+    @GetMapping("/{id}/directions")
+    public DataResponseMessage<List<RouteDirectionDTO>> getRouteDirections(@PathVariable Long id)
+            throws RouteNotFoundException {
+        return routeService.getRouteDirections(id);
+    }
+
+    /**
+     * Belirli yöndeki durakları getirme
+     */
+    @GetMapping("/{routeId}/direction/{directionType}/stations")
+    public DataResponseMessage<List<StationOrderDTO>> getStationsInDirection(
+            @PathVariable Long routeId,
+            @PathVariable DirectionType directionType)
+            throws RouteNotFoundException {
+        return routeService.getStationsInDirection(routeId, directionType);
+    }
+
+    /**
+     * İsme göre rota arama
+     */
+    @GetMapping("/search")
     public DataResponseMessage<List<RouteNameDTO>> searchRoutesByName(@RequestParam String name) {
         return routeService.searchRoutesByName(name);
     }
 
+    /**
+     * Durağa göre rota arama ve sonraki otobüs bilgisi
+     */
     @GetMapping("/search-by-station")
-    public DataResponseMessage<List<RouteWithNextBusDTO>> searchRoutesByStationId(@RequestParam Long stationId)
-            throws StationNotFoundException {
+    public DataResponseMessage<List<RouteWithNextBusDTO>> searchRoutesByStationId(
+            @RequestParam Long stationId) throws StationNotFoundException {
         return routeService.findRoutesWithNextBus(stationId);
     }
 
-    @PostMapping("/add-favorite")
+    /**
+     * Favorilere ekleme
+     */
+    @PostMapping("/favorite")
     public ResponseMessage addFavorite(@AuthenticationPrincipal UserDetails userDetails,
-                                       @RequestParam Long routeId) throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException, RouteAlreadyFavoriteException {
+                                       @RequestParam Long routeId)
+            throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException, RouteAlreadyFavoriteException {
         return routeService.addFavorite(userDetails.getUsername(), routeId);
     }
 
-    @DeleteMapping("/remove-favorite")
+    /**
+     * Favorilerden çıkarma
+     */
+    @DeleteMapping("/favorite")
     public ResponseMessage removeFavorite(@AuthenticationPrincipal UserDetails userDetails,
-                                          @RequestParam Long routeId) throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException {
+                                          @RequestParam Long routeId)
+            throws UserNotFoundException, RouteNotActiveException, RouteNotFoundException {
         return routeService.removeFavorite(userDetails.getUsername(), routeId);
     }
 
-    @GetMapping("/favorite")
-    public DataResponseMessage<List<RouteNameDTO>> favoriteRoutes(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
-        return routeService.favotiteRoutes(userDetails.getUsername());
+    /**
+     * Kullanıcının favori rotalarını getirme
+     */
+    @GetMapping("/favorites")
+    public DataResponseMessage<List<RouteNameDTO>> favoriteRoutes(
+            @AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
+        return routeService.favoriteRoutes(userDetails.getUsername());
     }
 
+    /**
+     * Rota önerisi
+     */
     @PostMapping("/suggest")
-    public DataResponseMessage<RouteSuggestionResponse> suggestRoute(@RequestBody RouteSuggestionRequest request) {
-      return routeService.suggestRoute(request);
-
+    public DataResponseMessage<RouteSuggestionResponse> suggestRoute(
+            @RequestBody RouteSuggestionRequest request) {
+        return routeService.suggestRoute(request);
     }
-
 }
-
-

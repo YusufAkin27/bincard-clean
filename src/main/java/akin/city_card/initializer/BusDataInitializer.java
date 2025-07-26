@@ -6,10 +6,9 @@ import akin.city_card.bus.repository.BusRepository;
 import akin.city_card.driver.model.Driver;
 import akin.city_card.driver.repository.DriverRepository;
 import akin.city_card.route.model.Route;
-import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.station.model.Station;
+import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.station.repository.StationRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -17,8 +16,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -31,6 +29,7 @@ public class BusDataInitializer implements ApplicationRunner {
     private final StationRepository stationRepository;
 
     private final Random random = new Random();
+
     @Override
     public void run(ApplicationArguments args) {
         if (busRepository.count() > 0) return;
@@ -39,26 +38,30 @@ public class BusDataInitializer implements ApplicationRunner {
         List<Route> routes = routeRepository.findAll();
         List<Station> stations = stationRepository.findAll();
 
-        if (drivers.size() < 100) {
-            System.out.println("🚫 Yeterli sürücü bulunamadı. Otobüsler oluşturulmadı.");
-            return;
-        }
+        if (!isInitialDataValid(drivers, routes, stations)) return;
 
-        for (int i = 0; i < 100; i++) {
-            Driver driver = drivers.get(i);
-            Route outboundRoute = routes.get(random.nextInt(routes.size()));
+        Set<Integer> usedDriverIndexes = new HashSet<>();
+
+        int createdCount = 0;
+        while (createdCount < 100 && usedDriverIndexes.size() < drivers.size()) {
+            int driverIndex = random.nextInt(drivers.size());
+            if (usedDriverIndexes.contains(driverIndex)) continue;
+
+            usedDriverIndexes.add(driverIndex);
+            Driver driver = drivers.get(driverIndex);
+            Route route = routes.get(random.nextInt(routes.size()));
             Station startStation = stations.get(random.nextInt(stations.size()));
 
             Bus bus = new Bus();
             bus.setDriver(driver);
-            bus.setRoute(outboundRoute);
-            bus.setNumberPlate(generatePlate(i));
-            bus.setFare(10.0 + random.nextDouble(5.0));
+            bus.setAssignedRoute(route);
+            bus.setNumberPlate(generatePlate(createdCount));
+            bus.setBaseFare(10.0 + random.nextDouble(5.0)); // Doğru field
             bus.setCapacity(30 + random.nextInt(30));
             bus.setCurrentPassengerCount(0);
             bus.setStatus(BusStatus.CALISIYOR);
             bus.setLastSeenStation(startStation);
-            bus.setLastSeenStationName(startStation.getName());
+            bus.setLastSeenStation(startStation);
             bus.setCurrentLatitude(startStation.getLocation().getLatitude());
             bus.setCurrentLongitude(startStation.getLocation().getLongitude());
             bus.setLastLocationUpdate(LocalDateTime.now());
@@ -66,9 +69,26 @@ public class BusDataInitializer implements ApplicationRunner {
             bus.setUpdatedAt(LocalDateTime.now());
 
             busRepository.save(bus);
+            createdCount++;
         }
 
-        System.out.println("✅ 100 otobüs başarıyla oluşturuldu.");
+        System.out.println("✅ " + createdCount + " otobüs başarıyla oluşturuldu.");
+    }
+
+    private boolean isInitialDataValid(List<Driver> drivers, List<Route> routes, List<Station> stations) {
+        if (drivers.size() < 100) {
+            System.out.println("🚫 Yeterli sürücü bulunamadı. Otobüsler oluşturulmadı.");
+            return false;
+        }
+        if (routes.isEmpty()) {
+            System.out.println("🚫 Rota bilgisi bulunamadı. Otobüsler oluşturulmadı.");
+            return false;
+        }
+        if (stations.isEmpty()) {
+            System.out.println("🚫 Durak bilgisi bulunamadı. Otobüsler oluşturulmadı.");
+            return false;
+        }
+        return true;
     }
 
     private String generatePlate(int index) {

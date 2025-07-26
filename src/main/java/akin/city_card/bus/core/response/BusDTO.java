@@ -1,58 +1,54 @@
 package akin.city_card.bus.core.response;
 
 import akin.city_card.bus.model.BusStatus;
-import akin.city_card.station.model.Station;
-import akin.city_card.user.core.response.Views;
-import com.fasterxml.jackson.annotation.JsonView;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class BusDTO {
-
-    @JsonView(Views.Public.class)
     private Long id;
-
-    @JsonView(Views.Public.class)
     private String numberPlate;
-
-    @JsonView(Views.Public.class)
-    private String routeName;
-
-    @JsonView(Views.Public.class)
     private String driverName;
-
-    @JsonView(Views.Public.class)
-    private boolean active;
-
-    @JsonView(Views.Public.class)
-    private double fare;
-
-    @JsonView(Views.User.class)
-    private double currentLatitude;
-
-    @JsonView(Views.User.class)
-    private double currentLongitude;
-
-    @JsonView(Views.User.class)
-    private LocalDateTime lastLocationUpdate;
-
-    @JsonView(Views.Admin.class)
+    private boolean isActive;
     private BusStatus status;
+    private String statusDisplayName;
+    private int capacity;
+    private int currentPassengerCount;
+    private Double occupancyRate;
+    private double baseFare;
 
-    @JsonView(Views.Admin.class)
-    private String lastSeenStationName;
+    // Rota bilgileri
+    private String assignedRouteName;
+    private String assignedRouteCode;
+    private String currentDirectionName;
 
-    @JsonView(Views.SuperAdmin.class)
+    // Durak bilgileri
+    private StationDTO lastSeenStation;
+    private LocalDateTime lastSeenStationTime;
+    private StationDTO nextStation;
+    private Integer estimatedArrivalMinutes;
+
+    // Konum bilgileri
+    private Double currentLatitude;
+    private Double currentLongitude;
+    private LocalDateTime lastLocationUpdate;
+    private Double lastKnownSpeed;
+
+    // Audit bilgileri
     private LocalDateTime createdAt;
-
-    @JsonView(Views.SuperAdmin.class)
     private LocalDateTime updatedAt;
-
-    @JsonView(Views.SuperAdmin.class)
     private String createdByUsername;
-
-    @JsonView(Views.SuperAdmin.class)
     private String updatedByUsername;
+
+    // Hesaplanan alanlar
+    private boolean canTakePassengers;
+    private boolean isFull;
+    private boolean isOperational;
 }

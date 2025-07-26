@@ -5,7 +5,6 @@ import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.route.repository.RouteStationNodeRepository;
 import akin.city_card.station.model.Station;
 import akin.city_card.station.repository.StationRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -14,8 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Component
 @RequiredArgsConstructor
@@ -37,35 +34,68 @@ public class RouteDataInitializer implements ApplicationRunner {
             return;
         }
 
-        for (int i = 1; i <= 30; i++) {
+        for (int i = 0; i < 30; i++) {
             List<Station> routeStations = selectNearbyStations(allStations, 20);
+            if (routeStations.size() < 2) continue;
+
+            String routeName = getRandomRouteName();
+            String routeCode = generateRouteCode(i);
+
             Route route = new Route();
-            route.setName("Rota-" + getRandomRouteName());
+            route.setName("Rota - " + routeName);
+            route.setCode(routeCode);
+            route.setStartStation(routeStations.get(0));
+            route.setEndStation(routeStations.get(routeStations.size() - 1));
+            route.setColor(generateColor());
+            route.setEstimatedDurationMinutes(45 + random.nextInt(20));
+            route.setTotalDistanceKm(5.0 + random.nextDouble(10.0));
+            route.setRouteType(RouteType.CITY_BUS);
+            route.setSchedule(generateRandomSchedule());
             route.setCreatedAt(LocalDateTime.now());
             route.setUpdatedAt(LocalDateTime.now());
             route.setActive(true);
             route.setDeleted(false);
-            route.setStartStation(routeStations.get(0));
-            route.setEndStation(routeStations.get(routeStations.size() - 1));
             routeRepository.save(route);
 
-            List<RouteStationNode> nodes = new ArrayList<>();
-            for (int j = 0; j < routeStations.size() - 1; j++) {
-                Station from = routeStations.get(j);
-                Station to = routeStations.get(j + 1);
+            // Yönleri oluştur
+            RouteDirection gidis = createRouteDirection(route, DirectionType.GIDIS, routeStations);
+            RouteDirection donus = createRouteDirection(route, DirectionType.DONUS, reverseList(routeStations));
 
-                RouteStationNode node = new RouteStationNode();
-                node.setRoute(route);
-                node.setFromStation(from);
-                node.setToStation(to);
-                node.setSequenceOrder(j + 1);
-                nodes.add(node);
-            }
-
-            routeStationNodeRepository.saveAll(nodes);
+            route.setDirections(List.of(gidis, donus));
+            routeRepository.save(route);
         }
 
         System.out.println("✅ 30 rota başarıyla oluşturuldu.");
+    }
+
+    private RouteDirection createRouteDirection(Route route, DirectionType type, List<Station> stations) {
+        RouteDirection direction = new RouteDirection();
+        direction.setRoute(route);
+        direction.setType(type);
+        direction.setName(type == DirectionType.GIDIS ?
+                stations.get(0).getName() + " → " + stations.get(stations.size() - 1).getName() :
+                stations.get(0).getName() + " → " + stations.get(stations.size() - 1).getName());
+        direction.setStartStation(stations.get(0));
+        direction.setEndStation(stations.get(stations.size() - 1));
+        direction.setEstimatedDurationMinutes(45 + random.nextInt(20));
+        direction.setTotalDistanceKm(5.0 + random.nextDouble(10.0));
+        direction.setActive(true);
+
+        List<RouteStationNode> nodes = new ArrayList<>();
+        for (int i = 0; i < stations.size() - 1; i++) {
+            RouteStationNode node = new RouteStationNode();
+            node.setDirection(direction);
+            node.setFromStation(stations.get(i));
+            node.setToStation(stations.get(i + 1));
+            node.setSequenceOrder(i);
+            node.setDistanceKm(0.3 + random.nextDouble(2.0));
+            node.setEstimatedTravelTimeMinutes(3 + random.nextInt(7));
+            node.setActive(true);
+            nodes.add(node);
+        }
+
+        direction.setStationNodes(nodes);
+        return direction;
     }
 
     private List<Station> selectNearbyStations(List<Station> allStations, int count) {
@@ -73,8 +103,7 @@ public class RouteDataInitializer implements ApplicationRunner {
         List<Station> result = new ArrayList<>();
         result.add(start);
 
-        Set<Station> used = new HashSet<>();
-        used.add(start);
+        Set<Station> used = new HashSet<>(result);
 
         while (result.size() < count) {
             Station last = result.get(result.size() - 1);
@@ -105,13 +134,28 @@ public class RouteDataInitializer implements ApplicationRunner {
         return names[random.nextInt(names.length)] + "-" + (100 + random.nextInt(900));
     }
 
+    private String generateRouteCode(int index) {
+        return "R" + (100 + index);
+    }
+
+    private String generateColor() {
+        String[] colors = {"#FF5733", "#33A1FF", "#6AFF33", "#FFC300", "#C70039", "#900C3F", "#581845"};
+        return colors[random.nextInt(colors.length)];
+    }
+
     private RouteSchedule generateRandomSchedule() {
         List<TimeSlot> all = Arrays.asList(TimeSlot.values());
         Collections.shuffle(all);
-        List<TimeSlot> weekday = all.subList(0, 8); // rastgele 8 zaman dilimi
+        List<TimeSlot> weekday = new ArrayList<>(all.subList(0, Math.min(all.size(), 8)));
         Collections.shuffle(all);
-        List<TimeSlot> weekend = all.subList(0, 5); // rastgele 5 zaman dilimi
+        List<TimeSlot> weekend = new ArrayList<>(all.subList(0, Math.min(all.size(), 5)));
 
         return new RouteSchedule(weekday, weekend);
+    }
+
+    private List<Station> reverseList(List<Station> list) {
+        List<Station> reversed = new ArrayList<>(list);
+        Collections.reverse(reversed);
+        return reversed;
     }
 }

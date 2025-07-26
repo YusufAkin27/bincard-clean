@@ -10,4 +10,6 @@ public class UpdateLocationRequest {
     private Double latitude;
     @ValidLongitude
     private Double longitude;
+    private Double speed;
+    private Double accuracy;
 }
