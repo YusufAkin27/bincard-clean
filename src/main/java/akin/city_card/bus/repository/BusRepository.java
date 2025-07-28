@@ -2,6 +2,8 @@ package akin.city_card.bus.repository;
 
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.model.BusStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,21 +17,21 @@ import java.util.Optional;
 public interface BusRepository extends JpaRepository<Bus, Long> {
 
     // === TEMEL CRUD SORGULARI ===
+  List<Bus> findAllByIsActiveFalseAndIsDeletedFalse();
 
     Optional<Bus> findByIdAndIsDeletedFalse(Long id);
 
-    List<Bus> findAllByIsDeletedFalse();
 
-    List<Bus> findAllByIsActiveTrueAndIsDeletedFalse();
+    Page<Bus> findAllByIsActiveTrueAndIsDeletedFalse(Pageable pageable);
 
-    List<Bus> findAllByIsActiveFalseAndIsDeletedFalse();
+    Page<Bus> findAllByIsActiveFalseAndIsDeletedFalse(Pageable pageable);
 
     // === PLAKA SORGULARI ===
 
     boolean existsByNumberPlateAndIsDeletedFalse(String numberPlate);
 
     @Query("SELECT b FROM Bus b WHERE UPPER(b.numberPlate) LIKE UPPER(CONCAT('%', :numberPlate, '%')) AND b.isDeleted = false")
-    List<Bus> findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(@Param("numberPlate") String numberPlate);
+    Page<Bus> findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(@Param("numberPlate") String numberPlate, Pageable pageable);
 
     // === ŞOFÖR SORGULARI ===
 
@@ -40,16 +42,16 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
     Optional<Bus> findByDriverIdAndIsActiveTrueAndIsDeletedFalse(@Param("driverId") Long driverId);
 
     @Query("SELECT b FROM Bus b WHERE b.driver.id = :driverId AND b.isDeleted = false")
-    List<Bus> findByDriverIdAndIsDeletedFalse(@Param("driverId") Long driverId);
+    Page<Bus> findByDriverIdAndIsDeletedFalse(@Param("driverId") Long driverId, Pageable pageable);
 
     // === ROTA SORGULARI ===
 
     @Query("SELECT b FROM Bus b WHERE b.assignedRoute.id = :routeId AND b.isDeleted = false")
-    List<Bus> findByAssignedRouteIdAndIsDeletedFalse(@Param("routeId") Long routeId);
+    Page<Bus> findByAssignedRouteIdAndIsDeletedFalse(@Param("routeId") Long routeId, Pageable pageable);
 
     // === DURUM SORGULARI ===
 
-    List<Bus> findByStatusAndIsDeletedFalse(BusStatus status);
+    Page<Bus> findByStatusAndIsDeletedFalse(BusStatus status, Pageable pageable);
 
     // === İSTATİSTİK SORGULARI ===
 
@@ -73,21 +75,6 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
     @Query("SELECT COUNT(b) FROM Bus b WHERE b.assignedRoute IS NULL AND b.isDeleted = false")
     long countByAssignedRouteIsNullAndIsDeletedFalse();
 
-    // === EK YARDIMCI SORGULAR ===
 
-    @Query("SELECT b FROM Bus b WHERE b.capacity >= :minCapacity AND b.isDeleted = false")
-    List<Bus> findByCapacityGreaterThanEqualAndIsDeletedFalse(@Param("minCapacity") int minCapacity);
-
-    @Query("SELECT b FROM Bus b WHERE (CAST(b.currentPassengerCount AS double) / CAST(b.capacity AS double)) >= :occupancyRate AND b.isDeleted = false")
-    List<Bus> findByOccupancyRateGreaterThanEqual(@Param("occupancyRate") double occupancyRate);
-
-    @Query("SELECT b FROM Bus b WHERE b.lastLocationUpdate >= :since AND b.isDeleted = false")
-    List<Bus> findByLastLocationUpdateAfterAndIsDeletedFalse(@Param("since") LocalDateTime since);
-
-    @Query("SELECT b FROM Bus b WHERE b.currentLatitude IS NOT NULL AND b.currentLongitude IS NOT NULL AND b.isActive = true AND b.isDeleted = false")
-    List<Bus> findActiveBusesWithLocation();
-
-    @Query("SELECT b FROM Bus b WHERE b.lastKnownSpeed >= :minSpeed AND b.isDeleted = false")
-    List<Bus> findByLastKnownSpeedGreaterThanEqualAndIsDeletedFalse(@Param("minSpeed") Double minSpeed);
 
 }

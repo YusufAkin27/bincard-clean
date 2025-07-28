@@ -11,6 +11,8 @@ import akin.city_card.bus.core.response.BusRideDTO;
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.model.BusLocation;
 import akin.city_card.bus.model.BusRide;
+import akin.city_card.news.core.response.PageDTO;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -33,4 +35,6 @@ public interface BusConverter {
     BusRideDTO toBusRideDTO(BusRide ride);
 
     List<BusRideDTO> toBusRideDTOList(List<BusRide> rides);
+
+    PageDTO<BusDTO> toPageDTO(Page<Bus> busPage);
 }

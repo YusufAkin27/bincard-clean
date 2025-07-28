@@ -5,13 +5,14 @@ import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.bus.core.request.*;
 import akin.city_card.bus.core.response.BusDTO;
 import akin.city_card.bus.core.response.BusLocationDTO;
-import akin.city_card.bus.core.response.BusRideDTO;
 import akin.city_card.bus.core.response.StationDTO;
 import akin.city_card.bus.exceptions.*;
 import akin.city_card.bus.service.abstracts.BusService;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import com.google.api.Page;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,24 +34,35 @@ public class BusController {
 
     private final BusService busService;
 
-    private boolean isAdminOrSuperAdmin(UserDetails userDetails) {
-        if (userDetails == null) return false;
-        return userDetails.getAuthorities().stream()
+    private void isAdminOrSuperAdmin(UserDetails userDetails) throws UnauthorizedAccessException {
+        if (userDetails == null || userDetails.getAuthorities() == null) {
+            throw new UnauthorizedAccessException();
+        }
+
+        boolean authorized = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(role -> role.equals("ADMIN") || role.equals("SUPERADMIN"));
+
+        if (!authorized) {
+            throw new UnauthorizedAccessException();
+        }
     }
+
 
     // === GENEL SORGULAMA ENDPOİNTLERİ ===
 
     @GetMapping("/all")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> getAllBuses(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getAllBuses(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         try {
-            DataResponseMessage<List<BusDTO>> response = busService.getAllBuses(userDetails.getUsername());
+            isAdminOrSuperAdmin(userDetails);
+            DataResponseMessage<PageDTO<BusDTO>> response = busService.getAllBuses(userDetails.getUsername(), page, size);
             return ResponseEntity.ok(response);
-        } catch (AdminNotFoundException e) {
+        } catch (UnauthorizedAccessException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new DataResponseMessage<>("Yetkisiz erişim.", false, null));
+                    .body(new DataResponseMessage<>(e.getMessage(), false, null));
         } catch (UnauthorizedAreaException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new DataResponseMessage<>("Bu alana erişim yetkiniz yok.", false, null));
@@ -60,6 +72,8 @@ public class BusController {
                     .body(new DataResponseMessage<>("Sistem hatası oluştu.", false, null));
         }
     }
+
+
 
     @GetMapping("/{busId}")
     public ResponseEntity<DataResponseMessage<BusDTO>> getBusById(
@@ -82,15 +96,16 @@ public class BusController {
     }
 
     @GetMapping("/active")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> getActiveBuses(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new DataResponseMessage<>("Yetkisiz erişim.", false, null));
-            }
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getActiveBuses(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-            DataResponseMessage<List<BusDTO>> response = busService.getActiveBuses(userDetails.getUsername());
+        try {
+            isAdminOrSuperAdmin(userDetails);
+
+
+            DataResponseMessage<PageDTO<BusDTO>> response = busService.getActiveBuses(userDetails.getUsername(), page, size);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting active buses: ", e);
@@ -99,36 +114,19 @@ public class BusController {
         }
     }
 
+
     // === CRUD İŞLEMLERİ ===
 
     @PostMapping("/create")
-    public ResponseEntity<ResponseMessage> createBus(
+    public ResponseMessage createBus(
             @Valid @RequestBody CreateBusRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            @AuthenticationPrincipal UserDetails userDetails) throws UnauthorizedAreaException, DriverNotFoundException, AdminNotFoundException, DriverAlreadyAssignedToBusException, DriverInactiveException, DuplicateBusPlateException, BusAlreadyAssignedAnotherDriverException, RouteNotFoundException, UnauthorizedAccessException {
 
-            ResponseMessage response = busService.createBus(request, userDetails.getUsername());
-            return ResponseEntity.status(response.isSuccess() ? HttpStatus.CREATED : HttpStatus.BAD_REQUEST)
-                    .body(response);
-        } catch (DuplicateBusPlateException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(new ResponseMessage("Bu plaka zaten sistemde kayıtlı.", false));
-        } catch (RouteNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ResponseMessage("Belirtilen rota bulunamadı.", false));
-        } catch (DriverNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ResponseMessage("Belirtilen şoför bulunamadı.", false));
-        } catch (Exception e) {
-            log.error("Error creating bus: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResponseMessage("Otobüs oluşturulurken hata oluştu.", false));
-        }
+        isAdminOrSuperAdmin(userDetails);
+
+        return busService.createBus(request, userDetails.getUsername());
     }
+
 
     @PutMapping("/update/{busId}")
     public ResponseEntity<ResponseMessage> updateBus(
@@ -136,10 +134,8 @@ public class BusController {
             @Valid @RequestBody UpdateBusRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.updateBus(busId, request, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -167,10 +163,8 @@ public class BusController {
             @PathVariable Long busId,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.deleteBus(busId, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -189,10 +183,8 @@ public class BusController {
             @PathVariable Long busId,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.toggleBusActive(busId, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -214,10 +206,8 @@ public class BusController {
             @Valid @RequestBody AssignDriverRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.assignDriver(busId, request.getDriverId(), userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -280,10 +270,8 @@ public class BusController {
             @RequestParam(required = false) LocalDate date,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new DataResponseMessage<>("Yetkisiz erişim.", false, null));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             DataResponseMessage<List<BusLocationDTO>> response = busService.getLocationHistory(busId, date, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -308,10 +296,7 @@ public class BusController {
             @Valid @RequestBody AssignRouteRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
 
             ResponseMessage response = busService.assignRoute(busId, request.getRouteId(), userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -358,10 +343,8 @@ public class BusController {
             @PathVariable Long busId,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.switchDirection(busId, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -381,10 +364,8 @@ public class BusController {
     public ResponseEntity<DataResponseMessage<Object>> getBusStatistics(
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new DataResponseMessage<>("Yetkisiz erişim.", false, null));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             DataResponseMessage<Object> response = busService.getBusStatistics(userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -398,33 +379,35 @@ public class BusController {
     // === ARAMA VE FİLTRELEME ===
 
     @GetMapping("/search")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> searchBuses(
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> searchBuses(
             @RequestParam(required = false) String numberPlate,
             @RequestParam(required = false) Long routeId,
             @RequestParam(required = false) Long driverId,
             @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new DataResponseMessage<>("Yetkisiz erişim.", false, null));
-            }
+            isAdminOrSuperAdmin(userDetails); // Yetki kontrolü
 
-            DataResponseMessage<List<BusDTO>> response;
+            DataResponseMessage<PageDTO<BusDTO>> response;
 
             if (numberPlate != null && !numberPlate.trim().isEmpty()) {
-                response = busService.searchByNumberPlate(numberPlate, userDetails.getUsername());
+                response = busService.searchByNumberPlate(numberPlate, userDetails.getUsername(), page, size);
             } else if (routeId != null) {
-                response = busService.getBusesByRoute(routeId, userDetails.getUsername());
+                response = busService.getBusesByRoute(routeId, userDetails.getUsername(), page, size);
             } else if (driverId != null) {
-                response = busService.getBusesByDriver(driverId, userDetails.getUsername());
+                response = busService.getBusesByDriver(driverId, userDetails.getUsername(), page, size);
             } else if (status != null) {
-                response = busService.getBusesByStatus(status, userDetails.getUsername());
+                response = busService.getBusesByStatus(status, userDetails.getUsername(), page, size);
             } else {
-                response = busService.getAllBuses(userDetails.getUsername());
+                response = busService.getAllBuses(userDetails.getUsername(), page, size);
             }
 
             return ResponseEntity.ok(response);
+        } catch (UnauthorizedAccessException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new DataResponseMessage<>(e.getMessage(), false, null));
         } catch (Exception e) {
             log.error("Error searching buses: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -433,11 +416,13 @@ public class BusController {
     }
 
     @GetMapping("/route/{routeId}")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> getBusesByRoute(
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getBusesByRoute(
             @PathVariable Long routeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            DataResponseMessage<List<BusDTO>> response = busService.getBusesByRoute(routeId, userDetails.getUsername());
+            DataResponseMessage<PageDTO<BusDTO>> response = busService.getBusesByRoute(routeId, userDetails.getUsername(), page, size);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting buses by route: ", e);
@@ -447,11 +432,13 @@ public class BusController {
     }
 
     @GetMapping("/driver/{driverId}")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> getBusesByDriver(
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getBusesByDriver(
             @PathVariable Long driverId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            DataResponseMessage<List<BusDTO>> response = busService.getBusesByDriver(driverId, userDetails.getUsername());
+            DataResponseMessage<PageDTO<BusDTO>> response = busService.getBusesByDriver(driverId, userDetails.getUsername(), page, size);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting buses by driver: ", e);
@@ -461,11 +448,13 @@ public class BusController {
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<DataResponseMessage<List<BusDTO>>> getBusesByStatus(
+    public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getBusesByStatus(
             @PathVariable String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            DataResponseMessage<List<BusDTO>> response = busService.getBusesByStatus(status, userDetails.getUsername());
+            DataResponseMessage<PageDTO<BusDTO>> response = busService.getBusesByStatus(status, userDetails.getUsername(), page, size);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting buses by status: ", e);
@@ -482,10 +471,8 @@ public class BusController {
             @Valid @RequestBody BusStatusUpdateRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.updateBusStatus(busId, request, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -499,30 +486,6 @@ public class BusController {
         }
     }
 
-    // === YOLCU YÖNETİMİ ===
-
-    @PutMapping("/{busId}/passenger-count")
-    public ResponseEntity<ResponseMessage> updatePassengerCount(
-            @PathVariable Long busId,
-            @RequestParam Integer count,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
-
-            ResponseMessage response = busService.updatePassengerCount(busId, count, userDetails.getUsername());
-            return ResponseEntity.ok(response);
-        } catch (BusNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ResponseMessage("Otobüs bulunamadı.", false));
-        } catch (Exception e) {
-            log.error("Error updating passenger count: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResponseMessage("Yolcu sayısı güncellenirken hata oluştu.", false));
-        }
-    }
 
     // === TOPLU İŞLEMLER ===
 
@@ -531,10 +494,8 @@ public class BusController {
             @RequestBody List<Long> busIds,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.bulkActivate(busIds, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -550,10 +511,8 @@ public class BusController {
             @RequestBody List<Long> busIds,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            if (!isAdminOrSuperAdmin(userDetails)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ResponseMessage("Yetkisiz erişim.", false));
-            }
+            isAdminOrSuperAdmin(userDetails);
+
 
             ResponseMessage response = busService.bulkDeactivate(busIds, userDetails.getUsername());
             return ResponseEntity.ok(response);
@@ -564,36 +523,5 @@ public class BusController {
         }
     }
 
-    // === GLOBAL HATA YÖNETİMİ ===
 
-    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-    public ResponseEntity<ResponseMessage> handleValidationException(
-            jakarta.validation.ConstraintViolationException e) {
-        String message = e.getConstraintViolations().stream()
-                .map(violation -> violation.getMessage())
-                .findFirst()
-                .orElse("Geçersiz veri girişi.");
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ResponseMessage(message, false));
-    }
-
-    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
-    public ResponseEntity<ResponseMessage> handleMethodArgumentNotValid(
-            org.springframework.web.bind.MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getDefaultMessage())
-                .findFirst()
-                .orElse("Geçersiz veri girişi.");
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ResponseMessage(message, false));
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ResponseMessage> handleGenericException(Exception e) {
-        log.error("Unexpected error in BusController: ", e);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ResponseMessage("Beklenmeyen bir hata oluştu.", false));
-    }
 }

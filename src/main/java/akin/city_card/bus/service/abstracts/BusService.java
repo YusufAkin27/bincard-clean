@@ -9,6 +9,7 @@ import akin.city_card.bus.core.response.BusDTO;
 import akin.city_card.bus.core.response.BusLocationDTO;
 import akin.city_card.bus.core.response.StationDTO;
 import akin.city_card.bus.exceptions.*;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -23,10 +24,10 @@ public interface BusService {
     /**
      * Tüm otobüsleri listele
      */
-    DataResponseMessage<List<BusDTO>> getAllBuses(String username)
+    DataResponseMessage<PageDTO<BusDTO>> getAllBuses(String username, int page, int size)
             throws AdminNotFoundException, UnauthorizedAreaException;
 
-    DataResponseMessage<List<BusDTO>> getBusesByStatus(String status, String username);
+    DataResponseMessage<PageDTO<BusDTO>> getBusesByStatus(String status, String username, int page, int size);
     /**
      * ID'ye göre otobüs getir
      */
@@ -36,13 +37,13 @@ public interface BusService {
     /**
      * Aktif otobüsleri listele
      */
-    DataResponseMessage<List<BusDTO>> getActiveBuses(String username);
+    DataResponseMessage<PageDTO<BusDTO>> getActiveBuses(String username, int page, int size);
 
     /**
      * Yeni otobüs oluştur
      */
     ResponseMessage createBus(CreateBusRequest request, String username)
-            throws AdminNotFoundException, DuplicateBusPlateException, RouteNotFoundException, DriverNotFoundException;
+            throws AdminNotFoundException, DuplicateBusPlateException, RouteNotFoundException, DriverNotFoundException, DriverInactiveException, DriverAlreadyAssignedToBusException, BusAlreadyAssignedAnotherDriverException;
 
     /**
      * Otobüs bilgilerini güncelle
@@ -126,17 +127,17 @@ public interface BusService {
     /**
      * Plakaya göre otobüs ara
      */
-    DataResponseMessage<List<BusDTO>> searchByNumberPlate(String numberPlate, String username);
+    DataResponseMessage<PageDTO<BusDTO>> searchByNumberPlate(String numberPlate, String username, int page, int size);
 
     /**
      * Rotaya göre otobüsleri getir
      */
-    DataResponseMessage<List<BusDTO>> getBusesByRoute(Long routeId, String username);
+    DataResponseMessage<PageDTO<BusDTO>> getBusesByRoute(Long routeId, String username, int page, int size);
 
     /**
      * Şoföre göre otobüsleri getir
      */
-    DataResponseMessage<List<BusDTO>> getBusesByDriver(Long driverId, String username);
+    DataResponseMessage<PageDTO<BusDTO>> getBusesByDriver(Long driverId, String username, int page, int size);
 
     // === DURUM YÖNETİMİ ===
 

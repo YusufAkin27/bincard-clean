@@ -10,7 +10,9 @@ import akin.city_card.bus.core.response.StationDTO;
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.model.BusLocation;
 import akin.city_card.bus.model.BusRide;
+import akin.city_card.news.core.response.PageDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -163,6 +165,23 @@ public class BusConverterImpl implements BusConverter {
                 .map(this::toBusRideDTO)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public PageDTO<BusDTO> toPageDTO(Page<Bus> busPage) {
+        List<BusDTO> content = busPage.getContent().stream()
+                .map(this::toBusDTO)
+                .collect(Collectors.toList());
+
+        PageDTO<BusDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(content);
+        pageDTO.setPageNumber(busPage.getNumber());
+        pageDTO.setPageSize(busPage.getSize());
+        pageDTO.setTotalElements(busPage.getTotalElements());
+        pageDTO.setTotalPages(busPage.getTotalPages());
+
+        return pageDTO;
+    }
+
 
     // Helper method - Station'ı StationDTO'ya çevir
     private StationDTO convertStationToDTO(akin.city_card.station.model.Station station) {

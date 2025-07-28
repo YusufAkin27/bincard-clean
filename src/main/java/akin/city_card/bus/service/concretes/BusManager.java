@@ -21,6 +21,7 @@ import akin.city_card.bus.service.abstracts.BusService;
 import akin.city_card.bus.service.abstracts.GoogleMapsService;
 import akin.city_card.driver.model.Driver;
 import akin.city_card.driver.repository.DriverRepository;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -28,6 +29,8 @@ import akin.city_card.route.model.Route;
 import akin.city_card.route.model.RouteDirection;
 import akin.city_card.route.model.RouteStationNode;
 import akin.city_card.route.repository.RouteRepository;
+import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.station.core.converter.StationConverter;
 import akin.city_card.station.model.Station;
 import akin.city_card.station.repository.StationRepository;
 import akin.city_card.superadmin.model.SuperAdmin;
@@ -35,6 +38,10 @@ import akin.city_card.superadmin.repository.SuperAdminRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -59,6 +66,7 @@ public class BusManager implements BusService {
     private final BusLocationRepository busLocationRepository;
     private final StationRepository stationRepository;
     private final GoogleMapsService googleMapsService;
+    private final StationConverter stationConverter;
 
     // === YARDIMCI METOTLAR ===
 
@@ -81,16 +89,26 @@ public class BusManager implements BusService {
     // === TEMEL CRUD İŞLEMLERİ ===
 
     @Override
-    public DataResponseMessage<List<BusDTO>> getAllBuses(String username)
+    public DataResponseMessage<PageDTO<BusDTO>> getAllBuses(String username, int page, int size)
             throws AdminNotFoundException, UnauthorizedAreaException {
         if (!isAdminOrSuperAdmin(username)) {
             throw new UnauthorizedAreaException();
         }
 
-        List<Bus> buses = busRepository.findAllByIsDeletedFalse();
-        List<BusDTO> busDTOs = busConverter.toBusDTOList(buses);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<Bus> busPage = busRepository.findAll(pageable);
 
-        return new DataResponseMessage<>("Tüm otobüsler başarıyla getirildi.", true, busDTOs);
+        List<BusDTO> busDTOs = busConverter.toBusDTOList(busPage.getContent());
+
+        PageDTO<BusDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(busDTOs);
+        pageDTO.setPageNumber(busPage.getNumber());
+        pageDTO.setPageSize(busPage.getSize());
+        pageDTO.setTotalElements(busPage.getTotalElements());
+        pageDTO.setTotalPages(busPage.getTotalPages());
+        pageDTO.setLast(busPage.isLast());
+
+        return new DataResponseMessage<>("Tüm otobüsler başarıyla getirildi.", true, pageDTO);
     }
 
     @Override
@@ -108,18 +126,29 @@ public class BusManager implements BusService {
     }
 
     @Override
-    public DataResponseMessage<List<BusDTO>> getActiveBuses(String username) {
-        List<Bus> activeBuses = busRepository.findAllByIsActiveTrueAndIsDeletedFalse();
-        List<BusDTO> busDTOs = busConverter.toBusDTOList(activeBuses);
+    public DataResponseMessage<PageDTO<BusDTO>> getActiveBuses(String username, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<Bus> busPage = busRepository.findAllByIsActiveTrueAndIsDeletedFalse(pageable);
+        Page<BusDTO> busDTOPage = busPage.map(busConverter::toBusDTO);
 
-        return new DataResponseMessage<>("Aktif otobüsler başarıyla getirildi.", true, busDTOs);
+        PageDTO<BusDTO> pageDTO = new PageDTO<>();
+        pageDTO.setContent(busDTOPage.getContent());
+        pageDTO.setPageNumber(busPage.getNumber());
+        pageDTO.setPageSize(busPage.getSize());
+        pageDTO.setTotalElements(busPage.getTotalElements());
+        pageDTO.setTotalPages(busPage.getTotalPages());
+        pageDTO.setLast(busPage.isLast());
+
+        return new DataResponseMessage<>("Aktif otobüsler başarıyla getirildi.", true, pageDTO);
     }
+
 
     @Override
     @Transactional
     public ResponseMessage createBus(CreateBusRequest request, String username)
             throws AdminNotFoundException, DuplicateBusPlateException,
-            RouteNotFoundException, DriverNotFoundException {
+            RouteNotFoundException, DriverNotFoundException, DriverInactiveException,
+            DriverAlreadyAssignedToBusException, BusAlreadyAssignedAnotherDriverException {
 
         Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
@@ -138,7 +167,6 @@ public class BusManager implements BusService {
                     .orElseThrow(RouteNotFoundException::new);
             bus.setAssignedRoute(route);
 
-            // Varsayılan olarak gidiş yönü ata
             if (route.getOutgoingDirection() != null) {
                 bus.setCurrentDirection(route.getOutgoingDirection());
             }
@@ -149,9 +177,19 @@ public class BusManager implements BusService {
             Driver driver = driverRepository.findById(request.getDriverId())
                     .orElseThrow(() -> new DriverNotFoundException(request.getDriverId()));
 
-            // Şoför başka bir otobüse atanmış mı?
+            // Şoför aktif mi?
+            if (!driver.getActive()) {
+                throw new DriverInactiveException(driver.getId());
+            }
+
+            // Şoför başka bir aktif otobüse atanmış mı?
             if (busRepository.existsByDriverIdAndIsActiveTrueAndIsDeletedFalse(driver.getId())) {
-                return new ResponseMessage("Şoför zaten başka bir aktif otobüse atanmış.", false);
+                throw new DriverAlreadyAssignedToBusException(driver.getId());
+            }
+
+            // Bu otobüse daha önce başka şoför atanmış mı?
+            if (bus.getDriver() != null && !bus.getDriver().getId().equals(driver.getId())) {
+                throw new BusAlreadyAssignedAnotherDriverException(bus.getNumberPlate());
             }
 
             bus.setDriver(driver);
@@ -168,6 +206,7 @@ public class BusManager implements BusService {
 
         return new ResponseMessage("Otobüs başarıyla oluşturuldu.", true);
     }
+
 
     @Override
     @Transactional
@@ -261,7 +300,7 @@ public class BusManager implements BusService {
 
         Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
-        Bus bus = busRepository.findByIdAndIsDeletedFalse(busId)
+        Bus bus = busRepository.findById(busId)
                 .orElseThrow(() -> new BusNotFoundException(busId));
 
         boolean newActiveStatus = !bus.isActive();
@@ -274,7 +313,7 @@ public class BusManager implements BusService {
             bus.setCurrentPassengerCount(0);
         }
 
-        bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+        bus.setUpdatedBy((SecurityUser) adminOrSuperAdmin);
         busRepository.save(bus);
 
         String message = newActiveStatus ?
@@ -292,7 +331,7 @@ public class BusManager implements BusService {
     public ResponseMessage assignDriver(Long busId, Long driverId, String username)
             throws AdminNotFoundException, BusNotFoundException, DriverNotFoundException, DriverAlreadyAssignedException {
 
-        Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+        SecurityUser adminUser = (SecurityUser) getAdminOrSuperAdmin(username);
 
         Bus bus = busRepository.findByIdAndIsDeletedFalse(busId)
                 .orElseThrow(() -> new BusNotFoundException(busId));
@@ -306,18 +345,15 @@ public class BusManager implements BusService {
             throw new DriverAlreadyAssignedException(driverId);
         }
 
-        // Eski şoför atamasını temizle - BURADAKİ HATA DÜZELTİLDİ
+        // Eğer bu otobüse atanmış farklı bir şoför varsa, bağlantıyı kaldır
         if (bus.getDriver() != null && !bus.getDriver().getId().equals(driverId)) {
-            // Eski şoförün tüm otobüslerini temizle
-            List<Bus> oldDriverBuses = busRepository.findByDriverIdAndIsDeletedFalse(bus.getDriver().getId());
-            for (Bus oldBus : oldDriverBuses) {
-                oldBus.setDriver(null);
-                busRepository.save(oldBus);
-            }
+            bus.setDriver(null);
         }
 
+        // Yeni şoför atanıyor
         bus.setDriver(driver);
-        bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+        bus.setUpdatedBy(adminUser);
+
         busRepository.save(bus);
 
         log.info("Driver assigned to bus: {} -> {}", driver.getId(), bus.getNumberPlate());
@@ -481,12 +517,12 @@ public class BusManager implements BusService {
             // İstasyoları sırayla al
             List<StationDTO> stationDTOs = nodes.stream()
                     .map(RouteStationNode::getFromStation)  // Her node'un fromStation'ı
-                    .map(this::convertToStationDTO)
+                    .map(stationConverter::toDTO)
                     .collect(Collectors.toList());
 
             // Son node'un toStation'ını da ekle
             Station lastStation = nodes.get(nodes.size() - 1).getToStation();
-            stationDTOs.add(convertToStationDTO(lastStation));
+            stationDTOs.add(stationConverter.toDTO(lastStation));
 
             return new DataResponseMessage<>("Rota istasyonları başarıyla getirildi.", true, stationDTOs);
 
@@ -609,50 +645,58 @@ public class BusManager implements BusService {
     // === FİLTRELEME VE ARAMA ===
 
     @Override
-    public DataResponseMessage<List<BusDTO>> searchByNumberPlate(String numberPlate, String username) {
+    public DataResponseMessage<PageDTO<BusDTO>> searchByNumberPlate(String numberPlate, String username, int page, int size) {
         try {
             if (!isAdminOrSuperAdmin(username)) {
                 return new DataResponseMessage<>("Yetkisiz erişim.", false, null);
             }
 
-            List<Bus> buses = busRepository.findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(numberPlate);
-            List<BusDTO> busDTOs = busConverter.toBusDTOList(buses);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Bus> busPage = busRepository.findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(numberPlate, pageable);
+            PageDTO<BusDTO> pageDTO = busConverter.toPageDTO(busPage);
 
-            return new DataResponseMessage<>("Arama sonuçları getirildi.", true, busDTOs);
+            return new DataResponseMessage<>("Arama sonuçları getirildi.", true, pageDTO);
+
         } catch (Exception e) {
             log.error("Error searching buses by plate: ", e);
             return new DataResponseMessage<>("Arama yapılırken hata oluştu.", false, null);
         }
     }
 
+
     @Override
-    public DataResponseMessage<List<BusDTO>> getBusesByRoute(Long routeId, String username) {
+    public DataResponseMessage<PageDTO<BusDTO>> getBusesByRoute(Long routeId, String username, int page, int size) {
         try {
             if (!isAdminOrSuperAdmin(username)) {
                 return new DataResponseMessage<>("Yetkisiz erişim.", false, null);
             }
 
-            List<Bus> buses = busRepository.findByAssignedRouteIdAndIsDeletedFalse(routeId);
-            List<BusDTO> busDTOs = busConverter.toBusDTOList(buses);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Bus> busPage = busRepository.findByAssignedRouteIdAndIsDeletedFalse(routeId, pageable);
+            PageDTO<BusDTO> pageDTO = busConverter.toPageDTO(busPage);
 
-            return new DataResponseMessage<>("Rotadaki otobüsler getirildi.", true, busDTOs);
+            return new DataResponseMessage<>("Rotadaki otobüsler getirildi.", true, pageDTO);
+
         } catch (Exception e) {
             log.error("Error getting buses by route: ", e);
             return new DataResponseMessage<>("Rotadaki otobüsler getirilirken hata oluştu.", false, null);
         }
     }
 
+
     @Override
-    public DataResponseMessage<List<BusDTO>> getBusesByDriver(Long driverId, String username) {
+    public DataResponseMessage<PageDTO<BusDTO>> getBusesByDriver(Long driverId, String username, int page, int size) {
         try {
             if (!isAdminOrSuperAdmin(username)) {
                 return new DataResponseMessage<>("Yetkisiz erişim.", false, null);
             }
 
-            List<Bus> buses = busRepository.findByDriverIdAndIsDeletedFalse(driverId);
-            List<BusDTO> busDTOs = busConverter.toBusDTOList(buses);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Bus> busPage = busRepository.findByDriverIdAndIsDeletedFalse(driverId, pageable);
+            PageDTO<BusDTO> pageDTO = busConverter.toPageDTO(busPage);
 
-            return new DataResponseMessage<>("Şoförün otobüsleri getirildi.", true, busDTOs);
+            return new DataResponseMessage<>("Şoförün otobüsleri getirildi.", true, pageDTO);
+
         } catch (Exception e) {
             log.error("Error getting buses by driver: ", e);
             return new DataResponseMessage<>("Şoförün otobüsleri getirilirken hata oluştu.", false, null);
@@ -800,17 +844,20 @@ public class BusManager implements BusService {
     }
 
     @Override
-    public DataResponseMessage<List<BusDTO>> getBusesByStatus(String status, String username) {
+    public DataResponseMessage<PageDTO<BusDTO>> getBusesByStatus(String status, String username, int page, int size) {
         try {
             if (!isAdminOrSuperAdmin(username)) {
                 return new DataResponseMessage<>("Yetkisiz erişim.", false, null);
             }
 
             BusStatus busStatus = BusStatus.valueOf(status.toUpperCase());
-            List<Bus> buses = busRepository.findByStatusAndIsDeletedFalse(busStatus);
-            List<BusDTO> busDTOs = busConverter.toBusDTOList(buses);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Bus> busPage = busRepository.findByStatusAndIsDeletedFalse(busStatus, pageable);
 
-            return new DataResponseMessage<>("Durumdaki otobüsler getirildi.", true, busDTOs);
+            PageDTO<BusDTO> pageDTO = busConverter.toPageDTO(busPage);
+
+            return new DataResponseMessage<>("Durumdaki otobüsler getirildi.", true, pageDTO);
+
         } catch (IllegalArgumentException e) {
             return new DataResponseMessage<>("Geçersiz durum değeri.", false, null);
         } catch (Exception e) {
@@ -819,22 +866,9 @@ public class BusManager implements BusService {
         }
     }
 
+
     // === YARDIMCI METOTLAR ===
 
-    private StationDTO convertToStationDTO(Station station) {
-        return StationDTO.builder()
-                .id(station.getId())
-                .name(station.getName())
-                .latitude(station.getLocation() != null ? station.getLocation().getLatitude() : 0.0)
-                .longitude(station.getLocation() != null ? station.getLocation().getLongitude() : 0.0)
-                .active(station.isActive())
-                .type(station.getType() != null ? station.getType().name() : null)
-                .city(station.getAddress() != null ? station.getAddress().getCity() : null)
-                .district(station.getAddress() != null ? station.getAddress().getDistrict() : null)
-                .street(station.getAddress() != null ? station.getAddress().getStreet() : null)
-                .postalCode(station.getAddress() != null ? station.getAddress().getPostalCode() : null)
-                .build();
-    }
 
     private Station findClosestStation(double latitude, double longitude) {
         // Basit mesafe hesaplama - gerçek implementasyonda daha karmaşık olabilir

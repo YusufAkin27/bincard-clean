@@ -5,6 +5,6 @@ import akin.city_card.security.exception.BusinessException;
 
 public class UnauthorizedAccessException extends BusinessException {
     public UnauthorizedAccessException( ) {
-        super("Sadece adminler konum geçmişini görebilir.");
+        super("Yetkiniz bulunmuyor");
     }
 }
