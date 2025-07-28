@@ -12,6 +12,8 @@ import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.route.exceptions.RouteNotActiveException;
+import akin.city_card.security.exception.UserNotFoundException;
 import com.google.api.Page;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -120,7 +122,7 @@ public class BusController {
     @PostMapping("/create")
     public ResponseMessage createBus(
             @Valid @RequestBody CreateBusRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) throws UnauthorizedAreaException, DriverNotFoundException, AdminNotFoundException, DriverAlreadyAssignedToBusException, DriverInactiveException, DuplicateBusPlateException, BusAlreadyAssignedAnotherDriverException, RouteNotFoundException, UnauthorizedAccessException {
+            @AuthenticationPrincipal UserDetails userDetails) throws UnauthorizedAreaException, DriverNotFoundException, AdminNotFoundException, DriverAlreadyAssignedToBusException, DriverInactiveException, DuplicateBusPlateException, BusAlreadyAssignedAnotherDriverException, RouteNotFoundException, UnauthorizedAccessException, UserNotFoundException, RouteNotActiveException {
 
         isAdminOrSuperAdmin(userDetails);
 
@@ -230,9 +232,10 @@ public class BusController {
     // === KONUM YÖNETİMİ ===
 
     @GetMapping("/{busId}/location")
-    public ResponseEntity<DataResponseMessage<BusLocationDTO>> getCurrentBusLocation(@PathVariable Long busId) {
+    public ResponseEntity<DataResponseMessage<BusLocationDTO>> getCurrentBusLocation(@PathVariable Long busId,
+                                                                                     @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            DataResponseMessage<BusLocationDTO> response = busService.getCurrentLocation(busId);
+            DataResponseMessage<BusLocationDTO> response = busService.getCurrentLocation(busId,userDetails.getUsername());
             return ResponseEntity.ok(response);
         } catch (BusNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -265,15 +268,18 @@ public class BusController {
     }
 
     @GetMapping("/{busId}/location-history")
-    public ResponseEntity<DataResponseMessage<List<BusLocationDTO>>> getLocationHistory(
+    public ResponseEntity<DataResponseMessage<PageDTO<BusLocationDTO>>> getLocationHistory(
             @PathVariable Long busId,
             @RequestParam(required = false) LocalDate date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
             isAdminOrSuperAdmin(userDetails);
 
+            DataResponseMessage<PageDTO<BusLocationDTO>> response =
+                    busService.getLocationHistory(busId, date, userDetails.getUsername(), page, size);
 
-            DataResponseMessage<List<BusLocationDTO>> response = busService.getLocationHistory(busId, date, userDetails.getUsername());
             return ResponseEntity.ok(response);
         } catch (BusNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -287,6 +293,7 @@ public class BusController {
                     .body(new DataResponseMessage<>("Konum geçmişi alınırken hata oluştu.", false, null));
         }
     }
+
 
     // === ROTA YÖNETİMİ ===
 
@@ -324,10 +331,9 @@ public class BusController {
     @GetMapping("/{busId}/eta")
     public ResponseEntity<DataResponseMessage<Double>> getEstimatedTimeToStation(
             @PathVariable Long busId,
-            @RequestParam Long stationId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @RequestParam Long stationId) {
         try {
-            DataResponseMessage<Double> response = busService.getEstimatedArrivalTime(busId, stationId, userDetails.getUsername());
+            DataResponseMessage<Double> response = busService.getEstimatedArrivalTime(busId, stationId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error getting estimated arrival time: ", e);

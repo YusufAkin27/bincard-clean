@@ -37,4 +37,6 @@ public interface BusConverter {
     List<BusRideDTO> toBusRideDTOList(List<BusRide> rides);
 
     PageDTO<BusDTO> toPageDTO(Page<Bus> busPage);
+
+    PageDTO<BusLocationDTO> toLocationPageDTO(Page<BusLocation> page);
 }

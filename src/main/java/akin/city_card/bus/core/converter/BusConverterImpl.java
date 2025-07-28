@@ -182,6 +182,20 @@ public class BusConverterImpl implements BusConverter {
         return pageDTO;
     }
 
+    public PageDTO<BusLocationDTO> toLocationPageDTO(Page<BusLocation> page) {
+        List<BusLocationDTO> dtoList = page.getContent().stream()
+                .map(this::toBusLocationDTO)
+                .toList();
+
+        PageDTO pageDTO = new PageDTO<>();
+        pageDTO.setContent(dtoList);
+        pageDTO.setPageNumber(page.getNumber());
+        pageDTO.setPageSize(page.getSize());
+        pageDTO.setTotalElements(page.getTotalElements());
+        pageDTO.setTotalPages(page.getTotalPages());
+        return pageDTO;
+    }
+
 
     // Helper method - Station'ı StationDTO'ya çevir
     private StationDTO convertStationToDTO(akin.city_card.station.model.Station station) {

@@ -13,155 +13,71 @@ import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.route.exceptions.RouteNotActiveException;
+import akin.city_card.security.exception.UserNotFoundException;
 
 import java.time.LocalDate;
 import java.util.List;
 
 public interface BusService {
 
-    // === TEMEL CRUD İŞLEMLERİ ===
-
-    /**
-     * Tüm otobüsleri listele
-     */
     DataResponseMessage<PageDTO<BusDTO>> getAllBuses(String username, int page, int size)
             throws AdminNotFoundException, UnauthorizedAreaException;
 
     DataResponseMessage<PageDTO<BusDTO>> getBusesByStatus(String status, String username, int page, int size);
-    /**
-     * ID'ye göre otobüs getir
-     */
+
     DataResponseMessage<BusDTO> getBusById(Long busId, String username)
             throws AdminNotFoundException, BusNotFoundException, UnauthorizedAreaException;
 
-    /**
-     * Aktif otobüsleri listele
-     */
     DataResponseMessage<PageDTO<BusDTO>> getActiveBuses(String username, int page, int size);
 
-    /**
-     * Yeni otobüs oluştur
-     */
     ResponseMessage createBus(CreateBusRequest request, String username)
-            throws AdminNotFoundException, DuplicateBusPlateException, RouteNotFoundException, DriverNotFoundException, DriverInactiveException, DriverAlreadyAssignedToBusException, BusAlreadyAssignedAnotherDriverException;
+            throws AdminNotFoundException, DuplicateBusPlateException, RouteNotFoundException, DriverNotFoundException, DriverInactiveException, DriverAlreadyAssignedToBusException, BusAlreadyAssignedAnotherDriverException, RouteNotActiveException, UserNotFoundException;
 
-    /**
-     * Otobüs bilgilerini güncelle
-     */
     ResponseMessage updateBus(Long busId, UpdateBusRequest request, String username)
             throws AdminNotFoundException, DuplicateBusPlateException, DriverNotFoundException,
-            RouteNotFoundException, BusNotFoundException;
+            RouteNotFoundException, BusNotFoundException, UserNotFoundException, DriverAlreadyAssignedToBusException, RouteDirectionNotFoundException;
 
-    /**
-     * Otobüsü sil (soft delete)
-     */
     ResponseMessage deleteBus(Long busId, String username)
-            throws AdminNotFoundException, BusNotFoundException;
+            throws AdminNotFoundException, BusNotFoundException, UserNotFoundException, BusAlreadyIsDeletedException;
 
-    /**
-     * Otobüs aktiflik durumunu değiştir
-     */
     ResponseMessage toggleBusActive(Long busId, String username)
             throws AdminNotFoundException, BusNotFoundException;
 
-    // === ŞOFÖR YÖNETİMİ ===
-
-    /**
-     * Otobüse şoför ata
-     */
     ResponseMessage assignDriver(Long busId, Long driverId, String username)
-            throws AdminNotFoundException, BusNotFoundException, DriverNotFoundException, DriverAlreadyAssignedException;
+            throws AdminNotFoundException, BusNotFoundException, DriverNotFoundException, DriverAlreadyAssignedException, DriverInactiveException;
 
-    // === KONUM YÖNETİMİ ===
+    DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId, String username) throws BusNotFoundException, AdminNotFoundException, BusLocationNotFoundException;
 
-    /**
-     * Otobüsün güncel konumunu getir
-     */
-    DataResponseMessage<BusLocationDTO> getCurrentLocation(Long busId) throws BusNotFoundException;
-
-    /**
-     * Otobüs konumunu güncelle
-     */
     ResponseMessage updateLocation(Long busId, UpdateLocationRequest request)
             throws UnauthorizedLocationUpdateException, BusNotFoundException;
 
-    /**
-     * Konum geçmişini getir
-     */
-    DataResponseMessage<List<BusLocationDTO>> getLocationHistory(Long busId, LocalDate date, String username)
-            throws UnauthorizedAccessException, BusNotFoundException;
+    DataResponseMessage<PageDTO<BusLocationDTO>> getLocationHistory(Long busId, LocalDate date, String username, int page, int size)
+            throws UnauthorizedAccessException, BusNotFoundException, AdminNotFoundException;
 
-    // === ROTA YÖNETİMİ ===
-
-    /**
-     * Otobüse rota ata
-     */
     ResponseMessage assignRoute(Long busId, Long routeId, String username);
 
-    /**
-     * Otobüsün rotasındaki durakları getir
-     */
     DataResponseMessage<List<StationDTO>> getRouteStations(Long busId, String username);
 
-    /**
-     * Belirli bir durağa tahmini varış süresini hesapla
-     */
-    DataResponseMessage<Double> getEstimatedArrivalTime(Long busId, Long stationId, String username);
+    DataResponseMessage<Double> getEstimatedArrivalTime(Long busId, Long stationId);
 
-    // === YÖN YÖNETİMİ ===
-
-    /**
-     * Otobüsün yönünü değiştir (gidiş ↔ dönüş)
-     */
     ResponseMessage switchDirection(Long busId, String username) throws BusNotFoundException;
 
-    // === İSTATİSTİKLER ===
-
-    /**
-     * Otobüs istatistiklerini getir
-     */
     DataResponseMessage<Object> getBusStatistics(String username);
 
-    // === FİLTRELEME VE ARAMA ===
-
-    /**
-     * Plakaya göre otobüs ara
-     */
     DataResponseMessage<PageDTO<BusDTO>> searchByNumberPlate(String numberPlate, String username, int page, int size);
 
-    /**
-     * Rotaya göre otobüsleri getir
-     */
     DataResponseMessage<PageDTO<BusDTO>> getBusesByRoute(Long routeId, String username, int page, int size);
 
-    /**
-     * Şoföre göre otobüsleri getir
-     */
     DataResponseMessage<PageDTO<BusDTO>> getBusesByDriver(Long driverId, String username, int page, int size);
 
-    // === DURUM YÖNETİMİ ===
-
-    /**
-     * Otobüs durumunu güncelle
-     */
     ResponseMessage updateBusStatus(Long busId, BusStatusUpdateRequest request, String username)
             throws BusNotFoundException;
 
-    /**
-     * Yolcu sayısını güncelle
-     */
     ResponseMessage updatePassengerCount(Long busId, Integer count, String username)
             throws BusNotFoundException;
 
-    // === TOPLU İŞLEMLER ===
-
-    /**
-     * Toplu otobüs aktivasyonu
-     */
     ResponseMessage bulkActivate(List<Long> busIds, String username);
 
-    /**
-     * Toplu otobüs deaktivasyonu
-     */
     ResponseMessage bulkDeactivate(List<Long> busIds, String username);
 }

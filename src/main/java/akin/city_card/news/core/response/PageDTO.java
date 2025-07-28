@@ -1,5 +1,6 @@
 package akin.city_card.news.core.response;
 
+import akin.city_card.bus.core.response.BusLocationDTO;
 import akin.city_card.wallet.core.response.TransferDetailsDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,6 +30,7 @@ public class PageDTO<T> {
         this.first = page.isFirst();
         this.last = page.isLast();
     }
+
 
 
 }

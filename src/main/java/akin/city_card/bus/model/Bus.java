@@ -14,9 +14,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Otobüs modeli - Temizlenmiş ve tutarlı hale getirildi
- */
+
 @Entity
 @Data
 @AllArgsConstructor
@@ -28,92 +26,63 @@ public class Bus {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * Plaka numarası
-     */
+
     @Column(nullable = false, unique = true, length = 20)
     private String numberPlate;
 
-    /**
-     * Bu otobüsün atandığı ana rota
-     */
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_route_id")
     private Route assignedRoute;
 
-    /**
-     * Şu anda hangi yönde gidiyor?
-     */
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_direction_id")
     private RouteDirection currentDirection;
 
-    /**
-     * Otobüs şoförü
-     */
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id")
     private Driver driver;
 
-    /**
-     * Otobüs aktif mi?
-     */
+
     @Column(nullable = false)
     private boolean isActive = true;
 
-    /**
-     * Temel bilet ücreti
-     */
     @Column(nullable = false)
     private double baseFare;
 
-    /**
-     * Otobüs durumu
-     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private BusStatus status = BusStatus.CALISIYOR;
 
-    /**
-     * Kapasite
-     */
+
     @Column(nullable = false)
     private int capacity = 50; // Varsayılan kapasite
 
-    /**
-     * Şu anki yolcu sayısı
-     */
+
     @Column(nullable = false)
     private int currentPassengerCount = 0;
 
-    // Konum bilgileri
     private Double currentLatitude;
     private Double currentLongitude;
     private LocalDateTime lastLocationUpdate;
     private Double lastKnownSpeed;
 
-    /**
-     * En son görüldüğü durak
-     */
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "last_seen_station_id")
     private Station lastSeenStation;
 
     private LocalDateTime lastSeenStationTime;
 
-    /**
-     * Bir sonraki hedef durak
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "next_station_id")
     private Station nextStation;
 
-    /**
-     * Tahmini varış süresi (dakika)
-     */
+
     private Integer estimatedArrivalMinutes;
 
-    // Audit fields
     @Column(nullable = false)
     private boolean isDeleted = false;
 
@@ -135,7 +104,6 @@ public class Bus {
     @JoinColumn(name = "deleted_by")
     private SecurityUser deletedBy;
 
-    // İlişkiler
     @OneToMany(mappedBy = "bus", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<BusRide> rides;
 
@@ -153,9 +121,6 @@ public class Bus {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Kart tipine göre ücret hesapla
-     */
     public double calculateFare(CardType cardType) {
         return switch (cardType) {
             case ÖĞRENCİ -> baseFare * 0.5;
@@ -169,23 +134,16 @@ public class Bus {
         };
     }
 
-    /**
-     * Otobüs dolu mu?
-     */
+
     public boolean isFull() {
         return currentPassengerCount >= capacity;
     }
 
-    /**
-     * Doluluk oranı (yüzde)
-     */
     public double getOccupancyRate() {
         return capacity > 0 ? (double) currentPassengerCount / capacity * 100 : 0;
     }
 
-    /**
-     * Yön değiştir (gidiş ↔ dönüş)
-     */
+
     public void switchDirection() {
         if (assignedRoute != null && currentDirection != null) {
             if (currentDirection.equals(assignedRoute.getOutgoingDirection())) {
@@ -196,23 +154,17 @@ public class Bus {
         }
     }
 
-    /**
-     * Rota adı kısa gösterimi
-     */
+
     public String getRouteDisplayName() {
         return assignedRoute != null ? assignedRoute.getName() : "Atanmamış";
     }
 
-    /**
-     * Rota kodu gösterimi
-     */
+
     public String getRouteCode() {
         return assignedRoute != null ? assignedRoute.getCode() : null;
     }
 
-    /**
-     * Şoför adı gösterimi
-     */
+
     public String getDriverDisplayName() {
         if (driver != null && driver.getProfileInfo() != null) {
             return driver.getProfileInfo().getName() + " " + driver.getProfileInfo().getSurname();
@@ -220,9 +172,7 @@ public class Bus {
         return "Atanmamış";
     }
 
-    /**
-     * Yön adı gösterimi
-     */
+
     public String getCurrentDirectionName() {
         return currentDirection != null ? currentDirection.getName() : "Belirsiz";
     }

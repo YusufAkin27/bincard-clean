@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -33,11 +32,6 @@ public class GoogleMapsService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * Google Maps Directions API kullanarak iki nokta arası seyahat süresini hesaplar
-     * Trafik durumunu da hesaba katar
-     */
 
 
     public Integer getEstimatedTimeInMinutes(double originLat, double originLng, double destLat, double destLng) {
@@ -63,60 +57,19 @@ public class GoogleMapsService {
         }
     }
 
-    public GoogleMapsResponse getDirections(double originLat, double originLng,
-                                            double destLat, double destLng) {
-        try {
-            String url = UriComponentsBuilder.fromHttpUrl(directionsApiUrl)
-                    .queryParam("origin", originLat + "," + originLng)
-                    .queryParam("destination", destLat + "," + destLng)
-                    .queryParam("mode", "driving")
-                    .queryParam("departure_time", "now") // Gerçek zamanlı trafik için
-                    .queryParam("traffic_model", "best_guess")
-                    .queryParam("key", apiKey)
-                    .queryParam("language", "tr")
-                    .build()
-                    .toUriString();
 
-            log.debug("Google Maps API request: {}", url);
-
-            GoogleMapsApiResponse apiResponse = restTemplate.getForObject(url, GoogleMapsApiResponse.class);
-
-            if (apiResponse != null && "OK".equals(apiResponse.getStatus()) &&
-                    apiResponse.getRoutes() != null && !apiResponse.getRoutes().isEmpty()) {
-
-                Route route = apiResponse.getRoutes().get(0);
-                Leg leg = route.getLegs().get(0);
-
-                return GoogleMapsResponse.builder()
-                        .success(true)
-                        .durationMinutes((int) Math.ceil(leg.getDuration().getValue() / 60.0))
-                        .durationInTrafficMinutes(leg.getDuration_in_traffic() != null ?
-                                (int) Math.ceil(leg.getDuration_in_traffic().getValue() / 60.0) :
-                                (int) Math.ceil(leg.getDuration().getValue() / 60.0))
-                        .distanceMeters(leg.getDistance().getValue())
-                        .requestTime(LocalDateTime.now())
-                        .build();
-            } else {
-                log.warn("Google Maps API returned error: {}",
-                        apiResponse != null ? apiResponse.getStatus() : "null response");
-                return GoogleMapsResponse.builder()
-                        .success(false)
-                        .requestTime(LocalDateTime.now())
-                        .build();
-            }
-
-        } catch (Exception e) {
-            log.error("Error calling Google Maps API", e);
-            return GoogleMapsResponse.builder()
-                    .success(false)
-                    .requestTime(LocalDateTime.now())
-                    .build();
-        }
+    public boolean isNear(double lat1, double lng1, double lat2, double lng2, double maxDistanceMeters) {
+        double earthRadius = 6371000;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                + Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double distance = earthRadius * c;
+        return distance <= maxDistanceMeters;
     }
 
-    /**
-     * Google Geocoding API kullanarak adresin koordinatlarını alır
-     */
     public LatLng getCoordinatesFromAddress(String address) {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(geocodeApiUrl)
@@ -148,14 +101,7 @@ public class GoogleMapsService {
 
     public record LatLng(double lat, double lng) {}
 
-    // ----- INNER CLASSES -----
 
-    @Data
-    static class GoogleMapsApiResponse {
-        private String status;
-        private List<Route> routes;
-        private String error_message;
-    }
 
     @Data
     static class Route {
@@ -184,13 +130,5 @@ public class GoogleMapsService {
         private int value; // metre cinsinden
     }
 
-    @Data
-    @Builder
-    static class GoogleMapsResponse {
-        private boolean success;
-        private int durationMinutes;
-        private int durationInTrafficMinutes;
-        private int distanceMeters;
-        private LocalDateTime requestTime;
-    }
+
 }
