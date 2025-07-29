@@ -9,31 +9,26 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface BusRepository extends JpaRepository<Bus, Long> {
 
-    // === TEMEL CRUD SORGULARI ===
-  List<Bus> findAllByIsActiveFalseAndIsDeletedFalse();
 
     Optional<Bus> findByIdAndIsDeletedFalse(Long id);
 
 
     Page<Bus> findAllByIsActiveTrueAndIsDeletedFalse(Pageable pageable);
 
-    Page<Bus> findAllByIsActiveFalseAndIsDeletedFalse(Pageable pageable);
+    List<Bus> findAllByIsActiveTrueAndIsDeletedFalse();
 
-    // === PLAKA SORGULARI ===
 
     boolean existsByNumberPlateAndIsDeletedFalse(String numberPlate);
 
     @Query("SELECT b FROM Bus b WHERE UPPER(b.numberPlate) LIKE UPPER(CONCAT('%', :numberPlate, '%')) AND b.isDeleted = false")
     Page<Bus> findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(@Param("numberPlate") String numberPlate, Pageable pageable);
 
-    // === ŞOFÖR SORGULARI ===
 
     @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Bus b WHERE b.driver.id = :driverId AND b.isActive = true AND b.isDeleted = false")
     boolean existsByDriverIdAndIsActiveTrueAndIsDeletedFalse(@Param("driverId") Long driverId);
@@ -74,7 +69,6 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
 
     @Query("SELECT COUNT(b) FROM Bus b WHERE b.assignedRoute IS NULL AND b.isDeleted = false")
     long countByAssignedRouteIsNullAndIsDeletedFalse();
-
 
 
 }

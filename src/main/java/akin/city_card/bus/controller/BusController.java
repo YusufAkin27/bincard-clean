@@ -77,25 +77,25 @@ public class BusController {
 
 
 
-    @GetMapping("/{busId}")
-    public ResponseEntity<DataResponseMessage<BusDTO>> getBusById(
-            @PathVariable Long busId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            DataResponseMessage<BusDTO> response = busService.getBusById(busId, userDetails.getUsername());
-            return ResponseEntity.ok(response);
-        } catch (BusNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new DataResponseMessage<>("Otobüs bulunamadı.", false, null));
-        } catch (UnauthorizedAreaException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new DataResponseMessage<>("Bu alana erişim yetkiniz yok.", false, null));
-        } catch (Exception e) {
-            log.error("Error getting bus by ID: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new DataResponseMessage<>("Sistem hatası oluştu.", false, null));
+        @GetMapping("/{busId}")
+        public ResponseEntity<DataResponseMessage<BusDTO>> getBusById(
+                @PathVariable Long busId,
+                @AuthenticationPrincipal UserDetails userDetails) {
+            try {
+                DataResponseMessage<BusDTO> response = busService.getBusById(busId, userDetails.getUsername());
+                return ResponseEntity.ok(response);
+            } catch (BusNotFoundException e) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new DataResponseMessage<>("Otobüs bulunamadı.", false, null));
+            } catch (UnauthorizedAreaException e) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new DataResponseMessage<>("Bu alana erişim yetkiniz yok.", false, null));
+            } catch (Exception e) {
+                log.error("Error getting bus by ID: ", e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new DataResponseMessage<>("Sistem hatası oluştu.", false, null));
+            }
         }
-    }
 
     @GetMapping("/active")
     public ResponseEntity<DataResponseMessage<PageDTO<BusDTO>>> getActiveBuses(
