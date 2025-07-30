@@ -2,6 +2,7 @@ package akin.city_card.bus.repository;
 
 import akin.city_card.bus.model.Bus;
 import akin.city_card.bus.model.BusStatus;
+import akin.city_card.route.model.Route;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,8 +21,6 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
 
 
     Page<Bus> findAllByIsActiveTrueAndIsDeletedFalse(Pageable pageable);
-
-    List<Bus> findAllByIsActiveTrueAndIsDeletedFalse();
 
 
     boolean existsByNumberPlateAndIsDeletedFalse(String numberPlate);
@@ -70,5 +69,16 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
     @Query("SELECT COUNT(b) FROM Bus b WHERE b.assignedRoute IS NULL AND b.isDeleted = false")
     long countByAssignedRouteIsNullAndIsDeletedFalse();
 
+    @Query("""
+    SELECT b FROM Bus b
+    WHERE b.assignedRoute = :route
+      AND b.isActive = true
+      AND b.isDeleted = false
+""")
+    List<Bus> findAllByAssignedRouteAndIsActiveTrueAndIsDeletedFalse(@Param("route") Route route);
 
+    List<Bus> findAllByIsActiveTrueAndIsDeletedFalseOrderById(Pageable pageable);
+
+    @Query("SELECT b FROM Bus b JOIN FETCH b.assignedRoute WHERE b.id = :busId AND b.isDeleted = false")
+    Optional<Bus> findByIdWithRoute(@Param("busId") Long busId);
 }

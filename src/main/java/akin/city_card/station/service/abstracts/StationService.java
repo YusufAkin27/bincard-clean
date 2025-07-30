@@ -7,9 +7,11 @@ import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.response.PublicRouteDTO;
+import akin.city_card.route.model.DirectionType;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
+import akin.city_card.station.core.response.StationDetailsDTO;
 import akin.city_card.station.exceptions.StationNotActiveException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.StationType;
@@ -31,7 +33,7 @@ public interface StationService {
 
     DataResponseMessage<PageDTO<StationDTO>> getAllStations(double v1, double v2, StationType type, int page, int size);
 
-    DataResponseMessage<StationDTO> getStationById(Long id);
+    DataResponseMessage<StationDetailsDTO> getStationById(Long id, DirectionType directionType);
 
     DataResponseMessage<PageDTO<StationDTO>> searchStationsByName(String name, int page, int size);
 

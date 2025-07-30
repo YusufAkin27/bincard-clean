@@ -1,5 +1,7 @@
 package akin.city_card.bus.service.abstracts;
 
+import akin.city_card.bus.model.Bus;
+import akin.city_card.station.model.Station;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
@@ -69,6 +71,7 @@ public class GoogleMapsService {
         double distance = earthRadius * c;
         return distance <= maxDistanceMeters;
     }
+
 
     public LatLng getCoordinatesFromAddress(String address) {
         try {

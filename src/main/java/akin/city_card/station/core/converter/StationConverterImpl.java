@@ -1,10 +1,23 @@
 package akin.city_card.station.core.converter;
 
 import akin.city_card.bus.core.response.StationDTO;
+import akin.city_card.bus.model.Bus;
+import akin.city_card.route.core.converter.RouteConverter;
+import akin.city_card.route.core.response.NextBusDTO;
+import akin.city_card.route.core.response.RouteWithNextBusDTO;
+import akin.city_card.route.model.Route;
+import akin.city_card.route.model.RouteDirection;
+import akin.city_card.route.service.abstracts.RouteService;
+import akin.city_card.station.core.response.StationDetailsDTO;
 import akin.city_card.station.model.Station;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Component
+@RequiredArgsConstructor
 public class StationConverterImpl implements StationConverter {
 
     @Override
@@ -22,4 +35,18 @@ public class StationConverterImpl implements StationConverter {
                 .postalCode(station.getAddress().getPostalCode())
                 .build();
     }
+    @Override
+    public StationDetailsDTO toStationDetailsDto(Station station, List<RouteWithNextBusDTO> routes) {
+        StationDetailsDTO dto = new StationDetailsDTO();
+        dto.setId(station.getId());
+        dto.setName(station.getName());
+        dto.setLatitude(station.getLocation().getLatitude());
+        dto.setLongitude(station.getLocation().getLongitude());
+        dto.setType(station.getType().name());
+        dto.setActive(station.isActive());
+        dto.setRoutes(routes);
+        return dto;
+    }
+
+
 }

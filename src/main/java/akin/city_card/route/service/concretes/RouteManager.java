@@ -2,6 +2,7 @@ package akin.city_card.route.service.concretes;
 
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.bus.model.Bus;
+import akin.city_card.bus.repository.BusRepository;
 import akin.city_card.bus.service.abstracts.GoogleMapsService;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
@@ -50,6 +51,7 @@ public class RouteManager implements RouteService {
     private final StationRepository stationRepository;
     private final UserRepository userRepository;
     private final GoogleMapsService googleMapsService;
+    private final BusRepository busRepository;
     private final StationConverter stationConverter;
 
     @Override
@@ -597,26 +599,22 @@ public class RouteManager implements RouteService {
         log.info("Route suggestion started for user location: ({}, {}) and destination: {}",
                 request.getUserLat(), request.getUserLng(), request.getDestinationAddress());
 
-        // 1. Hedef konumu Google Maps API ile al
         GoogleMapsService.LatLng destinationLatLng = googleMapsService.getCoordinatesFromAddress(request.getDestinationAddress());
         if (destinationLatLng == null) {
             log.warn("Destination address '{}' could not be resolved to coordinates.", request.getDestinationAddress());
             return new DataResponseMessage<>("Hedef adres bulunamadı.", false, null);
         }
 
-        // 2. Kullanıcıya yakın durakları filtrele
         List<Station> userNearbyStations = stationRepository.findAll().stream()
                 .filter(st -> isWithinRadius(request.getUserLat(), request.getUserLng(),
                         st.getLocation().getLatitude(), st.getLocation().getLongitude(), MAX_DISTANCE_KM))
                 .toList();
 
-        // 3. Hedefe yakın durakları filtrele
         List<Station> destinationNearbyStations = stationRepository.findAll().stream()
                 .filter(st -> isWithinRadius(destinationLatLng.lat(), destinationLatLng.lng(),
                         st.getLocation().getLatitude(), st.getLocation().getLongitude(), MAX_DISTANCE_KM))
                 .toList();
 
-        // 4. Ortak rotaları bul
         for (Station userStation : userNearbyStations) {
             for (Station destStation : destinationNearbyStations) {
                 List<Route> routes = findRoutesBetweenStations(userStation.getId(), destStation.getId());
@@ -643,7 +641,7 @@ public class RouteManager implements RouteService {
     }
 
     // Helper methods
-    private List<Route> findRoutesByStationId(Long stationId) {
+    public List<Route> findRoutesByStationId(Long stationId) {
         return routeRepository.findAll().stream()
                 .filter(Route::isActive)
                 .filter(route -> !route.isDeleted())
@@ -655,13 +653,12 @@ public class RouteManager implements RouteService {
                 .toList();
     }
 
-    private List<Bus> findActiveBusesForRoute(Route route) {
-        // Bu implementasyon bus repository'sinde yapılmalı
-        // Şimdilik mock data döndürüyoruz
-        return new ArrayList<>(); // TODO: Bus repository'den gerçek data çek
+    @Override
+    public List<Bus> findActiveBusesForRoute(Route route) {
+        return busRepository.findAllByAssignedRouteAndIsActiveTrueAndIsDeletedFalse(route);
     }
 
-    private Bus findNearestBusToStation(List<Bus> buses, Station station) {
+    public Bus findNearestBusToStation(List<Bus> buses, Station station) {
         return buses.stream()
                 .filter(bus -> bus.getCurrentLatitude() != null && bus.getCurrentLongitude() != null)
                 .min((b1, b2) -> {

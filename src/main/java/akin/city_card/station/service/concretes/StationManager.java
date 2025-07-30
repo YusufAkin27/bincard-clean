@@ -2,6 +2,8 @@ package akin.city_card.station.service.concretes;
 
 import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.bus.core.response.StationDTO;
+import akin.city_card.bus.model.Bus;
+import akin.city_card.bus.service.abstracts.GoogleMapsService;
 import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.paymentPoint.model.Address;
@@ -9,15 +11,22 @@ import akin.city_card.paymentPoint.model.Location;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.converter.RouteConverter;
+import akin.city_card.route.core.response.NextBusDTO;
 import akin.city_card.route.core.response.PublicRouteDTO;
-import akin.city_card.route.core.response.RouteDTO;
+import akin.city_card.route.core.response.RouteWithNextBusDTO;
+import akin.city_card.route.model.DirectionType;
 import akin.city_card.route.model.Route;
+import akin.city_card.route.model.RouteDirection;
+import akin.city_card.route.model.RouteStationNode;
 import akin.city_card.route.repository.RouteRepository;
+import akin.city_card.route.service.abstracts.RouteService;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.station.core.converter.StationConverter;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
+import akin.city_card.station.core.response.RoutePosition;
+import akin.city_card.station.core.response.StationDetailsDTO;
 import akin.city_card.station.exceptions.StationNotActiveException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.Station;
@@ -29,6 +38,7 @@ import akin.city_card.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +48,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StationManager implements StationService {
     private final StationRepository stationRepository;
     private final UserRepository userRepository;
@@ -45,6 +56,8 @@ public class StationManager implements StationService {
     private final StationConverter stationConverter;
     private final RouteRepository routeRepository;
     private final RouteConverter routeConverter;
+    private final RouteService routeService;
+    private final GoogleMapsService googleMapsService;
 
     @Override
     @Transactional
@@ -161,11 +174,223 @@ public class StationManager implements StationService {
 
 
     @Override
-    public DataResponseMessage<StationDTO> getStationById(Long id) {
+    public DataResponseMessage<StationDetailsDTO> getStationById(Long id, DirectionType directionType) {
         Station station = stationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Durak bulunamadı."));
-        return new DataResponseMessage<>("Durak bulundu.", true, stationConverter.toDTO(station));
+
+        List<Route> stationRoutes = routeService.findRoutesByStationId(id);
+        List<RouteWithNextBusDTO> routeDtos = new ArrayList<>();
+
+        for (Route route : stationRoutes) {
+            List<Bus> activeBuses = routeService.findActiveBusesForRoute(route);
+
+            List<NextBusDTO> nextBuses = new ArrayList<>();
+            for (RouteDirection direction : route.getDirections()) {
+
+                if (directionType != null && !direction.getType().equals(directionType)) {
+                    continue;
+                }
+
+                List<Bus> directionBuses = activeBuses.stream()
+                        .filter(bus -> bus.getCurrentDirection() != null &&
+                                direction.getId().equals(bus.getCurrentDirection().getId()))
+                        .toList();
+
+                List<NextBusDTO> directionNextBuses = directionBuses.stream()
+                        .map(bus -> calculateDetailedETA(bus, station, direction))
+                        .filter(Objects::nonNull)
+                        .filter(dto -> dto.getArrivalInMinutes() != null && dto.getArrivalInMinutes() < 60)
+                        .sorted(Comparator.comparing(NextBusDTO::getArrivalInMinutes))
+                        .limit(3)
+                        .toList();
+
+                nextBuses.addAll(directionNextBuses);
+            }
+
+            RouteWithNextBusDTO dto = RouteWithNextBusDTO.builder()
+                    .id(route.getId())
+                    .name(route.getName())
+                    .code(route.getCode())
+                    .routeType(route.getRouteType().getDisplayName())
+                    .startStationName(route.getStartStation().getName())
+                    .endStationName(route.getEndStation().getName())
+                    .routeSchedule(routeConverter.toRouteScheduleDTO(route.getSchedule()))
+                    .nextBuses(nextBuses)
+                    .totalActiveBuses(activeBuses.size())
+                    .build();
+
+            routeDtos.add(dto);
+        }
+
+        StationDetailsDTO stationDto = stationConverter.toStationDetailsDto(station, routeDtos);
+        return new DataResponseMessage<>("Durak bulundu.", true, stationDto);
     }
+
+
+    public NextBusDTO calculateDetailedETA(Bus bus, Station targetStation, RouteDirection direction) {
+        if (bus.getCurrentLatitude() == null || bus.getCurrentLongitude() == null ||
+                targetStation.getLocation() == null) {
+            return null;
+        }
+
+        try {
+            double busLat = bus.getCurrentLatitude();
+            double busLng = bus.getCurrentLongitude();
+            double stationLat = targetStation.getLocation().getLatitude();
+            double stationLng = targetStation.getLocation().getLongitude();
+
+            RoutePosition busPosition = findBusPositionInRoute(bus, direction);
+            if (busPosition == null) {
+                return null;
+            }
+
+            RoutePosition targetPosition = findStationPositionInRoute(targetStation, direction);
+            if (targetPosition == null) {
+                return null;
+            }
+
+            if (busPosition.getSequenceOrder() >= targetPosition.getSequenceOrder()) {
+                return null;
+            }
+
+            int remainingStops = targetPosition.getSequenceOrder() - busPosition.getSequenceOrder();
+
+            Integer baseETAMinutes = googleMapsService.getEstimatedTimeInMinutes(
+                    busLat, busLng, stationLat, stationLng
+            );
+
+            if (baseETAMinutes == null) {
+                return null;
+            }
+
+            int stopWaitingTime = remainingStops * 1;
+
+            double speedFactor = calculateSpeedFactor(bus);
+
+            double trafficFactor = calculateTrafficFactor();
+
+            int finalETA = (int) Math.round(
+                    (baseETAMinutes * speedFactor * trafficFactor) + stopWaitingTime
+            );
+
+            return NextBusDTO.builder()
+                    .plate(bus.getNumberPlate())
+                    .arrivalInMinutes(finalETA)
+                    .direction(direction.getType())
+                    .directionName(direction.getName())
+                    .currentLocation(getCurrentLocationDescription(bus, busPosition))
+                    .remainingStops(remainingStops)
+                    .occupancyRate((int) bus.getOccupancyRate())
+                    .busStatus(bus.getStatus().getDisplayName())
+                    .currentSpeed(bus.getLastKnownSpeed() != null ?
+                            bus.getLastKnownSpeed().intValue() : null)
+                    .trafficStatus(getTrafficStatus(trafficFactor))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("ETA hesaplama hatası - Bus: {}, Station: {}",
+                    bus.getNumberPlate(), targetStation.getName(), e);
+            return null;
+        }
+    }
+
+    private RoutePosition findBusPositionInRoute(Bus bus, RouteDirection direction) {
+        if (bus.getLastSeenStation() == null) {
+            return null;
+        }
+
+        List<RouteStationNode> nodes = direction.getStationNodes();
+
+        if (direction.getStartStation().getId().equals(bus.getLastSeenStation().getId())) {
+            return new RoutePosition(0, direction.getStartStation());
+        }
+
+        for (int i = 0; i < nodes.size(); i++) {
+            RouteStationNode node = nodes.get(i);
+            if (node.getToStation().getId().equals(bus.getLastSeenStation().getId())) {
+                return new RoutePosition(i + 1, node.getToStation());
+            }
+        }
+
+        return null;
+    }
+
+
+    private RoutePosition findStationPositionInRoute(Station targetStation, RouteDirection direction) {
+        if (direction.getStartStation().getId().equals(targetStation.getId())) {
+            return new RoutePosition(0, direction.getStartStation());
+        }
+
+        List<RouteStationNode> nodes = direction.getStationNodes();
+        for (int i = 0; i < nodes.size(); i++) {
+            RouteStationNode node = nodes.get(i);
+            if (node.getToStation().getId().equals(targetStation.getId())) {
+                return new RoutePosition(i + 1, node.getToStation());
+            }
+        }
+
+        return null;
+    }
+
+
+    private double calculateSpeedFactor(Bus bus) {
+        if (bus.getLastKnownSpeed() == null) {
+            return 1.0;
+        }
+
+        double speed = bus.getLastKnownSpeed();
+
+        double averageCitySpeed = 25.0;
+
+        if (speed < 10) {
+            return 1.5;
+        } else if (speed > 40) {
+            return 0.8;
+        } else {
+            return speed / averageCitySpeed;
+        }
+    }
+
+
+    private double calculateTrafficFactor() {
+        LocalDateTime now = LocalDateTime.now();
+        int hour = now.getHour();
+
+        if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+            return 1.4;
+        } else if (hour >= 12 && hour <= 14) {
+            return 1.2;
+        } else if (hour >= 22 || hour <= 6) {
+            return 0.8;
+        } else {
+            return 1.0;
+        }
+    }
+
+    private String getCurrentLocationDescription(Bus bus, RoutePosition position) {
+        if (bus.getLastSeenStation() != null) {
+            return bus.getLastSeenStation().getName() + " civarında";
+        } else if (position != null && position.getStation() != null) {
+            return position.getStation().getName() + " yakınında";
+        } else {
+            return "Konum belirleniyor";
+        }
+    }
+
+
+    private String getTrafficStatus(double trafficFactor) {
+        if (trafficFactor >= 1.4) {
+            return "Yoğun Trafik";
+        } else if (trafficFactor >= 1.2) {
+            return "Orta Trafik";
+        } else if (trafficFactor <= 0.8) {
+            return "Hafif Trafik";
+        } else {
+            return "Normal Trafik";
+        }
+    }
+
+
 
     @Override
     public DataResponseMessage<PageDTO<StationDTO>> searchStationsByName(String name, int page, int size) {
@@ -396,7 +621,6 @@ public class StationManager implements StationService {
     }
 
 
-
     private Set<String> splitWords(String text) {
         if (text == null) return Set.of();
 
@@ -429,7 +653,7 @@ public class StationManager implements StationService {
 
 
     private double distance(double lat1, double lon1, double lat2, double lon2) {
-        final int R = 6371; // Dünya yarıçapı (km)
+        final int R = 6371;
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a =

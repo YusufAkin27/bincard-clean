@@ -9,9 +9,11 @@ import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.core.response.PublicRouteDTO;
 import akin.city_card.route.core.response.RouteDTO;
+import akin.city_card.route.model.DirectionType;
 import akin.city_card.station.core.request.CreateStationRequest;
 import akin.city_card.station.core.request.SearchStationRequest;
 import akin.city_card.station.core.request.UpdateStationRequest;
+import akin.city_card.station.core.response.StationDetailsDTO;
 import akin.city_card.station.exceptions.StationNotActiveException;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.StationType;
@@ -53,9 +55,13 @@ public class StationController {
     }
 
     @GetMapping("/{id}")
-    public DataResponseMessage<StationDTO> getStationById(@PathVariable Long id) {
-        return stationService.getStationById(id);
+    public DataResponseMessage<StationDetailsDTO> getStationById(
+            @PathVariable Long id,
+            @RequestParam(required = false) DirectionType directionType
+    ) {
+        return stationService.getStationById(id, directionType);
     }
+
 
     @GetMapping
     public DataResponseMessage<PageDTO<StationDTO>> getAllStations(

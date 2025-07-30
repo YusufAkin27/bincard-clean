@@ -1,6 +1,7 @@
 package akin.city_card.route.service.abstracts;
 
 import akin.city_card.bus.exceptions.RouteNotFoundException;
+import akin.city_card.bus.model.Bus;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.response.ResponseMessage;
@@ -10,8 +11,10 @@ import akin.city_card.route.core.request.RouteSuggestionRequest;
 import akin.city_card.route.exceptions.RouteAlreadyFavoriteException;
 import akin.city_card.route.exceptions.RouteNotActiveException;
 import akin.city_card.route.model.DirectionType;
+import akin.city_card.route.model.Route;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.station.exceptions.StationNotFoundException;
+import akin.city_card.station.model.Station;
 
 import java.util.List;
 
@@ -102,4 +105,10 @@ public interface RouteService {
      */
     DataResponseMessage<List<StationOrderDTO>> getStationsInDirection(Long routeId, DirectionType directionType)
             throws RouteNotFoundException;
+
+    List<Route> findRoutesByStationId(Long id);
+
+    List<Bus> findActiveBusesForRoute(Route route);
+
+    Bus findNearestBusToStation(List<Bus> directionBuses, Station station);
 }
