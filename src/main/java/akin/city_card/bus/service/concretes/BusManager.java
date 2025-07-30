@@ -72,7 +72,6 @@ public class BusManager implements BusService {
     private final StationRepository stationRepository;
     private final GoogleMapsService googleMapsService;
     private final StationConverter stationConverter;
-    private final SecurityUserRepository securityUserRepository;
     private final RouteDirectionRepository routeDirectionRepository;
 
 
@@ -568,24 +567,25 @@ public class BusManager implements BusService {
     }
 
 
-
     @Override
     @Transactional
     public ResponseMessage switchDirection(Long busId, String username) throws BusNotFoundException {
         try {
 
 
-            Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
-            Bus bus = busRepository.findByIdAndIsDeletedFalse(busId)
+            Bus bus = busRepository.findById(busId)
                     .orElseThrow(() -> new BusNotFoundException(busId));
 
+            if (!bus.isActive() || bus.isDeleted()) throw new BusInactiveException(busId);
+
             if (bus.getAssignedRoute() == null) {
-                return new ResponseMessage("Otobüse rota atanmamış.", false);
+               throw new BusAssignedRouteNotFoundException();
             }
 
             bus.switchDirection();
-            bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+            bus.setUpdatedBy(adminOrSuperAdmin);
             busRepository.save(bus);
 
             log.info("Direction switched for bus: {}", bus.getNumberPlate());
@@ -640,7 +640,9 @@ public class BusManager implements BusService {
     public DataResponseMessage<PageDTO<BusDTO>> searchByNumberPlate(String numberPlate, String username, int page, int size) {
         try {
 
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
+            //admin superadmin loglama ekle
             Pageable pageable = PageRequest.of(page, size);
             Page<Bus> busPage = busRepository.findByNumberPlateContainingIgnoreCaseAndIsDeletedFalse(numberPlate, pageable);
             PageDTO<BusDTO> pageDTO = busConverter.toPageDTO(busPage);
@@ -658,6 +660,7 @@ public class BusManager implements BusService {
     public DataResponseMessage<PageDTO<BusDTO>> getBusesByRoute(Long routeId, String username, int page, int size) {
         try {
 
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
             Pageable pageable = PageRequest.of(page, size);
             Page<Bus> busPage = busRepository.findByAssignedRouteIdAndIsDeletedFalse(routeId, pageable);
@@ -675,6 +678,7 @@ public class BusManager implements BusService {
     @Override
     public DataResponseMessage<PageDTO<BusDTO>> getBusesByDriver(Long driverId, String username, int page, int size) {
         try {
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
 
             Pageable pageable = PageRequest.of(page, size);
@@ -698,7 +702,7 @@ public class BusManager implements BusService {
         try {
 
 
-            Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
             Bus bus = busRepository.findByIdAndIsDeletedFalse(busId)
                     .orElseThrow(() -> new BusNotFoundException(busId));
@@ -708,7 +712,7 @@ public class BusManager implements BusService {
                 bus.setStatus(request.getStatus());
             }
 
-            bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+            bus.setUpdatedBy(adminOrSuperAdmin);
             busRepository.save(bus);
 
             log.info("Bus status updated: {} -> {}", bus.getNumberPlate(), request.getStatus());
@@ -727,7 +731,7 @@ public class BusManager implements BusService {
         try {
 
 
-            Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
             Bus bus = busRepository.findByIdAndIsDeletedFalse(busId)
                     .orElseThrow(() -> new BusNotFoundException(busId));
@@ -742,7 +746,7 @@ public class BusManager implements BusService {
             }
 
             bus.setCurrentPassengerCount(count);
-            bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+            bus.setUpdatedBy(adminOrSuperAdmin);
             busRepository.save(bus);
 
             log.info("Passenger count updated: {} -> {}", bus.getNumberPlate(), count);
@@ -762,17 +766,18 @@ public class BusManager implements BusService {
         try {
 
 
-            Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
             int updatedCount = 0;
 
             for (Long busId : busIds) {
-                Optional<Bus> busOpt = busRepository.findByIdAndIsDeletedFalse(busId);
+                Optional<Bus> busOpt = busRepository.findById(busId);
                 if (busOpt.isPresent()) {
                     Bus bus = busOpt.get();
                     if (!bus.isActive()) {
                         bus.setActive(true);
+                        bus.setDeleted(false);
                         bus.setStatus(BusStatus.CALISIYOR);
-                        bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+                        bus.setUpdatedBy(adminOrSuperAdmin);
                         busRepository.save(bus);
                         updatedCount++;
                     }
@@ -793,7 +798,7 @@ public class BusManager implements BusService {
     public ResponseMessage bulkDeactivate(List<Long> busIds, String username) {
         try {
 
-            Object adminOrSuperAdmin = getAdminOrSuperAdmin(username);
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
             int updatedCount = 0;
 
             for (Long busId : busIds) {
@@ -802,9 +807,10 @@ public class BusManager implements BusService {
                     Bus bus = busOpt.get();
                     if (bus.isActive()) {
                         bus.setActive(false);
+                        bus.setDeleted(true);
                         bus.setStatus(BusStatus.SERVIS_DISI);
                         bus.setCurrentPassengerCount(0);
-                        bus.setUpdatedBy((akin.city_card.security.entity.SecurityUser) adminOrSuperAdmin);
+                        bus.setUpdatedBy(adminOrSuperAdmin);
                         busRepository.save(bus);
                         updatedCount++;
                     }
@@ -823,6 +829,7 @@ public class BusManager implements BusService {
     @Override
     public DataResponseMessage<PageDTO<BusDTO>> getBusesByStatus(String status, String username, int page, int size) {
         try {
+            SecurityUser adminOrSuperAdmin = getAdminOrSuperAdmin(username);
 
 
             BusStatus busStatus = BusStatus.valueOf(status.toUpperCase());
@@ -846,7 +853,6 @@ public class BusManager implements BusService {
 
 
     private Station findClosestStation(double latitude, double longitude) {
-        // Basit mesafe hesaplama - gerçek implementasyonda daha karmaşık olabilir
         List<Station> allStations = stationRepository.findAllByActiveTrue();
 
         Station closest = null;

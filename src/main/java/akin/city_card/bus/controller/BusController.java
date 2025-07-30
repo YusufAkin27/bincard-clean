@@ -349,9 +349,6 @@ public class BusController {
             @PathVariable Long busId,
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            isAdminOrSuperAdmin(userDetails);
-
-
             ResponseMessage response = busService.switchDirection(busId, userDetails.getUsername());
             return ResponseEntity.ok(response);
         } catch (BusNotFoundException e) {
@@ -371,8 +368,6 @@ public class BusController {
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
             isAdminOrSuperAdmin(userDetails);
-
-
             DataResponseMessage<Object> response = busService.getBusStatistics(userDetails.getUsername());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
