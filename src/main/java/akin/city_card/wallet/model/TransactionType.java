@@ -9,5 +9,5 @@ public enum TransactionType {
     REFUND,         // İade işlemi
     FORCE_CREDIT,
     FORCE_DEBIT,
-    ADJUSTMENT      // Manuel bakiye düzeltme (destek vs.)
+    AUTO_TOPUP, ADJUSTMENT      // Manuel bakiye düzeltme (destek vs.)
 }

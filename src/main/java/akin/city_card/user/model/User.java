@@ -1,5 +1,6 @@
 package akin.city_card.user.model;
 
+import akin.city_card.autoTopUp.model.AutoTopUpConfig;
 import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.contract.model.UserContractAcceptance;

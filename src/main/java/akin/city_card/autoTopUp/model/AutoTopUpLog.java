@@ -1,8 +1,9 @@
-package akin.city_card.user.model;
+package akin.city_card.autoTopUp.model;
 
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -24,7 +25,7 @@ public class AutoTopUpLog {
 
     private LocalDateTime timestamp;
 
-    private double amount;
+    private BigDecimal amount;
 
     private boolean success;
 

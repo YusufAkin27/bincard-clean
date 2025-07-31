@@ -1,11 +1,13 @@
-package akin.city_card.user.model;
+package akin.city_card.autoTopUp.model;
 
 import akin.city_card.buscard.model.BusCard;
+import akin.city_card.user.model.User;
 import akin.city_card.wallet.model.Wallet;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -29,16 +31,15 @@ public class AutoTopUpConfig {
     @JoinColumn(name = "bus_card_id", nullable = false)
     private BusCard busCard;
 
-    // 💸 CÜZDAN üzerinden ödeme desteği
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
 
     @Column(nullable = false)
-    private double threshold;
+    private BigDecimal threshold;
 
     @Column(nullable = false)
-    private double amount;
+    private BigDecimal amount;
 
     private boolean active = true;
 

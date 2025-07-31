@@ -2,19 +2,16 @@ package akin.city_card.user.service.abstracts;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
+import akin.city_card.autoTopUp.core.request.AutoTopUpConfigRequest;
+import akin.city_card.autoTopUp.core.response.AutoTopUpConfigDTO;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
-import akin.city_card.contract.core.request.AcceptContractRequest;
-import akin.city_card.contract.core.request.RejectContractRequest;
-import akin.city_card.contract.core.response.AcceptedContractDTO;
-import akin.city_card.contract.core.response.UserContractDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
-import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
@@ -44,7 +41,6 @@ public interface UserService {
     ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException;
 
 
-    ResponseMessage deactivateUser(String username) throws UserNotFoundException;
 
     List<ResponseMessage> createAll(@Valid List<CreateUserRequest> createUserRequests) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException;
 
@@ -65,7 +61,7 @@ public interface UserService {
     ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, VerificationCodeExpiredException;
 
     boolean updateFCMToken(String fcmToken, String username) throws UserNotFoundException;
-
+    ResponseMessage terminateSessionByAdmin(Long userId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException;
 
     Page<CacheUserDTO> getAllUsers(String username, int page, int size)
             throws UserNotActiveException, UnauthorizedAreaException;
@@ -83,13 +79,6 @@ public interface UserService {
 
     CacheUserDTO updateNotificationPreferences(String username, NotificationPreferencesDTO preferences) throws UserNotFoundException;
 
-    List<AutoTopUpConfigDTO> getAutoTopUpConfigs(String username) throws UserNotFoundException;
-
-    CacheUserDTO exportUserData(String username) throws UserNotFoundException;
-
-    ResponseMessage addAutoTopUpConfig(String username, AutoTopUpConfigRequest configRequest) throws UserNotFoundException, BusCardNotFoundException, WalletIsEmptyException;
-
-    ResponseMessage deleteAutoTopUpConfig(String username, Long configId) throws AutoTopUpConfigNotFoundException, UserNotFoundException;
 
     ResponseMessage setLowBalanceThreshold(String username, LowBalanceAlertRequest request) throws UserNotFoundException, BusCardNotFoundException, AlreadyBusCardLowBalanceException;
 
@@ -118,5 +107,4 @@ public interface UserService {
     ResponseMessage unfreezeAccount(String username, UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException, AccountNotFrozenException;
 
 
-    ResponseMessage terminateSessionByAdmin(Long sessionId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException;
 }

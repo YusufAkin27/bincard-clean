@@ -6,6 +6,9 @@ import akin.city_card.admin.core.response.AuditLogDTO;
 import akin.city_card.admin.model.ActionType;
 import akin.city_card.admin.model.AuditLog;
 import akin.city_card.admin.repository.AuditLogRepository;
+import akin.city_card.autoTopUp.core.request.AutoTopUpConfigRequest;
+import akin.city_card.autoTopUp.core.response.AutoTopUpConfigDTO;
+import akin.city_card.autoTopUp.model.AutoTopUpConfig;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.converter.BusCardConverter;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
@@ -15,12 +18,6 @@ import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.cloudinary.MediaUploadService;
-import akin.city_card.contract.core.request.AcceptContractRequest;
-import akin.city_card.contract.core.request.RejectContractRequest;
-import akin.city_card.contract.core.response.AcceptedContractDTO;
-import akin.city_card.contract.core.response.UserContractDTO;
-import akin.city_card.contract.model.Contract;
-import akin.city_card.contract.model.UserContractAcceptance;
 import akin.city_card.location.model.Location;
 import akin.city_card.mail.EmailMessage;
 import akin.city_card.mail.MailService;
@@ -49,13 +46,12 @@ import akin.city_card.sms.SmsService;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.station.model.Station;
 import akin.city_card.station.repository.StationRepository;
-import akin.city_card.user.core.converter.AutoTopUpConverter;
 import akin.city_card.user.core.converter.UserConverter;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.user.model.*;
-import akin.city_card.user.repository.AutoTopUpConfigRepository;
+import akin.city_card.autoTopUp.repository.AutoTopUpConfigRepository;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
@@ -105,8 +101,6 @@ public class UserManager implements UserService {
     private final BusCardRepository busCardRepository;
     private final WalletRepository walletRepository;
     private final WalletConverter walletConverter;
-    private final AutoTopUpConfigRepository autoTopUpConfigRepository;
-    private final AutoTopUpConverter autoTopUpConverter;
     private AuditLogRepository auditLogRepository;
     private final CachedUserLookupService cachedUserLookupService;
     private final RouteRepository routeRepository;
@@ -354,23 +348,7 @@ public class UserManager implements UserService {
     }
 
 
-    @Override
-    @Transactional
-    public ResponseMessage deactivateUser(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        user.setStatus(UserStatus.INACTIVE);
-        user.setDeleted(true);
-        tokenRepository.deleteBySecurityUserId(user.getId());
-        fcmService.sendNotificationToToken(
-                user,
-                "Pasif oldunuz !",
-                "Hesabınız devre dışı bırakıldı. Tekrar giriş yapamazsınız.",
-                NotificationType.WARNING,
-                null
-        );
 
-        return new ResponseMessage("Kullanıcı hesabı silindi.", true);
-    }
 
     @Override
     public List<ResponseMessage> createAll(List<CreateUserRequest> createUserRequests) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException {
@@ -750,16 +728,6 @@ public class UserManager implements UserService {
         return userConverter.toCacheUserDTO(user);
     }
 
-    @Override
-    public List<AutoTopUpConfigDTO> getAutoTopUpConfigs(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-
-        List<AutoTopUpConfig> configs = user.getAutoTopUpConfigs();
-
-        return configs.stream()
-                .map(autoTopUpConverter::convertToDTO)
-                .toList();
-    }
 
 
 /*
@@ -779,66 +747,8 @@ public class UserManager implements UserService {
 
  */
 
-    @Override
-    @JsonView(Views.User.class)
-    public CacheUserDTO exportUserData(String username) throws UserNotFoundException {
-        if (username == null) {
-            throw new IllegalArgumentException("Username cannot be null");
-        }
 
-        CacheUserDTO cacheUserDTO = cachedUserLookupService.findByUsername(username);
 
-        if (cacheUserDTO.getEmail() != null) {
-            String emailBody = buildEmailBodyFromCacheDTO(cacheUserDTO);
-
-            EmailMessage emailMessage = new EmailMessage();
-            emailMessage.setToEmail(cacheUserDTO.getEmail());
-            emailMessage.setSubject("Hesap Bilgileriniz");
-            emailMessage.setBody(emailBody);
-            emailMessage.setHtml(false);
-
-            mailService.queueEmail(emailMessage);
-        }
-
-        return cacheUserDTO;
-    }
-
-    @Override
-    @Transactional
-    public ResponseMessage addAutoTopUpConfig(String username, AutoTopUpConfigRequest configRequest) throws UserNotFoundException, BusCardNotFoundException, WalletIsEmptyException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-
-        Optional<BusCard> busCard = busCardRepository.findById(configRequest.getBusCard());
-        if (busCard.isEmpty()) {
-            throw new BusCardNotFoundException();
-        }
-        Wallet wallet = user.getWallet();
-        if (wallet == null) {
-            throw new WalletIsEmptyException();
-        }
-        AutoTopUpConfig autoTopUpConfig = new AutoTopUpConfig();
-        autoTopUpConfig.setAmount(configRequest.getAmount());
-        autoTopUpConfig.setBusCard(busCard.get());
-        autoTopUpConfig.setThreshold(configRequest.getThreshold());
-        autoTopUpConfig.setUser(user);
-        autoTopUpConfig.setWallet(wallet);
-        autoTopUpConfig.setLastTopUpAt(null);
-        autoTopUpConfig.setCreatedAt(LocalDateTime.now());
-        autoTopUpConfig.setActive(true);
-        autoTopUpConfig.setAutoTopUpLogs(new ArrayList<>());
-        autoTopUpConfigRepository.save(autoTopUpConfig);
-        return new ResponseMessage("otomatik ödeme alındı", true);
-    }
-
-    @Override
-    @Transactional
-    public ResponseMessage deleteAutoTopUpConfig(String username, Long configId) throws AutoTopUpConfigNotFoundException, UserNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        AutoTopUpConfig autoTopUpConfig = user.getAutoTopUpConfigs().stream().filter(a -> a.getId().equals(configId)).findFirst().orElseThrow(AutoTopUpConfigNotFoundException::new);
-        autoTopUpConfig.setActive(false);
-        autoTopUpConfigRepository.save(autoTopUpConfig);
-        return new ResponseMessage("otomatik ödeme kapatıldı", true);
-    }
 
     @Override
     public ResponseMessage setLowBalanceThreshold(String username, LowBalanceAlertRequest request) throws UserNotFoundException, BusCardNotFoundException, AlreadyBusCardLowBalanceException {
