@@ -6,10 +6,15 @@ import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.request.RejectContractRequest;
+import akin.city_card.contract.core.response.AcceptedContractDTO;
+import akin.city_card.contract.core.response.UserContractDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
+import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
@@ -21,6 +26,7 @@ import akin.city_card.user.exceptions.*;
 import akin.city_card.verification.exceptions.*;
 import akin.city_card.wallet.core.response.WalletDTO;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -104,4 +110,13 @@ public interface UserService {
     void updateLocation(String username, @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException;
 
     ResponseMessage verifyEmail(String token, String email) throws VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeStillValidException, UserNotFoundException, VerificationCodeAlreadyUsedException, VerificationCodeCancelledException, VerificationCodeTypeMismatchException, EmailMismatchException, InvalidVerificationCodeException;
+
+    ResponseMessage deleteAccount(String username, DeleteAccountRequest request, HttpServletRequest httpRequest) throws ApproveIsConfirmDeletionException, UserNotFoundException, PasswordsDoNotMatchException, WalletBalanceNotZeroException;
+
+    ResponseMessage freezeAccount(String username, FreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException;
+
+    ResponseMessage unfreezeAccount(String username, UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException, AccountNotFrozenException;
+
+
+    ResponseMessage terminateSessionByAdmin(Long sessionId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException;
 }

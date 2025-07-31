@@ -6,5 +6,5 @@ public enum UserStatus {
     SUSPENDED,        // Geçici olarak sistem dışı bırakılmış
     DELETED,          // Sistemden silinmiş (soft delete olabilir)
     BANNED,           // Sistem politikaları nedeniyle yasaklanmış
-    UNVERIFIED        // Email veya telefon doğrulaması yapılmamış
+    FROZEN, UNVERIFIED        // Email veya telefon doğrulaması yapılmamış
 }

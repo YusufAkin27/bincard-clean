@@ -17,4 +17,5 @@ public class DeviceInfo implements Serializable {
     private String fcmToken;
     private String deviceUuid;
     private String ipAddress;
+    private String userAgent;
 }

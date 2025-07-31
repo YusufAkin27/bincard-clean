@@ -2,18 +2,19 @@ package akin.city_card.user.controller;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
+import akin.city_card.admin.core.response.LoginHistoryDTO;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.response.AcceptedContractDTO;
+import akin.city_card.contract.core.response.UserContractDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
-import akin.city_card.security.exception.InvalidVerificationCodeException;
-import akin.city_card.security.exception.UserNotActiveException;
-import akin.city_card.security.exception.UserNotFoundException;
-import akin.city_card.security.exception.VerificationCodeStillValidException;
+import akin.city_card.security.exception.*;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
@@ -22,6 +23,8 @@ import akin.city_card.user.service.abstracts.UserService;
 import akin.city_card.verification.exceptions.*;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import com.fasterxml.jackson.annotation.JsonView;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -138,7 +142,6 @@ public class UserController {
     }
 
 
-
     //profil fotoğrafı yükleme
     @PutMapping("/profile/photo")
     public ResponseMessage uploadProfilePhoto(@AuthenticationPrincipal UserDetails userDetails,
@@ -152,11 +155,363 @@ public class UserController {
         return userService.deleteProfilePhoto(userDetails.getUsername());
     }
 
+    // Hesap silme işlemi (kalıcı silme)
+    @DeleteMapping("/delete-account")
+    public ResponseMessage deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody DeleteAccountRequest request,
+            HttpServletRequest httpRequest
+    ) throws UserNotFoundException, IncorrectPasswordException, UserNotActiveException, PasswordsDoNotMatchException, ApproveIsConfirmDeletionException, WalletBalanceNotZeroException {
+        return userService.deleteAccount(userDetails.getUsername(), request, httpRequest);
+    }
 
-    // 5. Hesap pasifleştirme (soft delete gibi)
-    @DeleteMapping("/deactivate")
-    public ResponseMessage deactivateUser(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
-        return userService.deactivateUser(userDetails.getUsername());
+
+    @PostMapping("/freeze-account")
+    public ResponseMessage freezeAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody FreezeAccountRequest request,
+            HttpServletRequest httpRequest
+    ) throws UserNotFoundException {
+        return userService.freezeAccount(userDetails.getUsername(), request, httpRequest);
+    }
+
+    @PostMapping("/unfreeze-account")
+    public ResponseMessage unfreezeAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody UnfreezeAccountRequest request,
+            HttpServletRequest httpRequest
+    ) throws UserNotFoundException, AccountNotFrozenException {
+        return userService.unfreezeAccount(userDetails.getUsername(), request, httpRequest);
+    }
+
+
+    /**
+     * İstemci IP adresini alma metodu
+     */
+    private String getClientIpAddress(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp;
+        }
+
+        return request.getRemoteAddr();
+    }
+/*
+    // Giriş geçmişini görüntüleme
+    @GetMapping("/login-history")
+    public Page<LoginHistoryDTO> getLoginHistory(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PageableDefault(size = 20, sort = "loginAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) throws UserNotFoundException {
+        return userService.getLoginHistory(userDetails.getUsername(), pageable);
+    }
+
+    // Dil ayarları
+    @PutMapping("/preferences/language")
+    public ResponseMessage updateLanguage(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody UpdateLanguageRequest request
+    ) throws UserNotFoundException, UnsupportedLanguageException {
+        return userService.updateLanguage(userDetails.getUsername(), request);
+    }
+
+    // Tema ayarları
+    @PutMapping("/preferences/theme")
+    public ResponseMessage updateTheme(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody UpdateThemeRequest request
+    ) throws UserNotFoundException {
+        return userService.updateTheme(userDetails.getUsername(), request);
+    }
+
+    // Gizlilik ayarları
+    @PutMapping("/privacy-settings")
+    public ResponseMessage updatePrivacySettings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody PrivacySettingsRequest request
+    ) throws UserNotFoundException {
+        return userService.updatePrivacySettings(userDetails.getUsername(), request);
+    }
+
+    // Kullanıcı istatistikleri
+    @GetMapping("/statistics")
+    public UserStatisticsDTO getUserStatistics(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) String period // DAILY, WEEKLY, MONTHLY, YEARLY
+    ) throws UserNotFoundException {
+        return userService.getUserStatistics(userDetails.getUsername(), period);
+    }
+
+    @GetMapping("/admin/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public AdminUserDetailDTO getUserById(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.getUserByIdForAdmin(adminDetails.getUsername(), userId);
+    }
+
+    // Kullanıcı durumunu güncelleme
+    @PutMapping("/admin/{userId}/status")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage updateUserStatus(
+            @PathVariable Long userId,
+            @RequestBody UpdateUserStatusRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException, InvalidStatusTransitionException {
+        return userService.updateUserStatus(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcıyı askıya alma
+    @PostMapping("/admin/{userId}/suspend")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage suspendUser(
+            @PathVariable Long userId,
+            @RequestBody SuspendUserRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException, UserAlreadySuspendedException {
+        return userService.suspendUser(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcı askıya alma işlemini kaldırma
+    @PostMapping("/admin/{userId}/unsuspend")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage unsuspendUser(
+            @PathVariable Long userId,
+            @RequestBody UnsuspendUserRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException, UserNotSuspendedException {
+        return userService.unsuspendUser(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcıyı yasaklama
+    @PostMapping("/admin/{userId}/ban")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage banUser(
+            @PathVariable Long userId,
+            @RequestBody BanUserRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException, UserAlreadyBannedException {
+        return userService.banUser(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcı yasağını kaldırma
+    @PostMapping("/admin/{userId}/unban")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage unbanUser(
+            @PathVariable Long userId,
+            @RequestBody UnbanUserRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException, UserNotBannedException {
+        return userService.unbanUser(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcı şifresini sıfırlama (Admin)
+    @PostMapping("/admin/{userId}/reset-password")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage adminResetPassword(
+            @PathVariable Long userId,
+            @RequestBody AdminPasswordResetRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.adminResetPassword(adminDetails.getUsername(), userId, request);
+    }
+
+    // Kullanıcı hesabını kalıcı olarak silme
+    @DeleteMapping("/admin/{userId}/delete")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseMessage permanentlyDeleteUser(
+            @PathVariable Long userId,
+            @RequestBody PermanentDeleteRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.permanentlyDeleteUser(adminDetails.getUsername(), userId, request);
+    }
+    // ===== KULLANICI AKTİVİTE TAKİBİ =====
+
+    // Kullanıcı aktivite raporunu görüntüleme
+    @GetMapping("/admin/{userId}/activity-report")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public UserActivityReportDTO getUserActivityReport(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.getUserActivityReport(adminDetails.getUsername(), userId, startDate, endDate);
+    }
+
+    // Şüpheli aktiviteleri listeleme
+    @GetMapping("/admin/suspicious-activities")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public Page<SuspiciousActivityDTO> getSuspiciousActivities(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(required = false) String activityType,
+            @RequestParam(required = false) String severity,
+            @PageableDefault(size = 20, sort = "detectedAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) throws UnauthorizedAreaException {
+        return userService.getSuspiciousActivities(adminDetails.getUsername(), activityType, severity, pageable);
+    }
+
+    // Şüpheli aktiviteyi işaretleme/çözme
+    @PostMapping("/admin/suspicious-activities/{activityId}/resolve")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage resolveSuspiciousActivity(
+            @PathVariable Long activityId,
+            @RequestBody ResolveSuspiciousActivityRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws SuspiciousActivityNotFoundException, UnauthorizedAreaException {
+        return userService.resolveSuspiciousActivity(adminDetails.getUsername(), activityId, request);
+    }
+
+// ===== KULLANICI İSTATİSTİKLERİ =====
+
+    // Genel kullanıcı istatistikleri
+    @GetMapping("/admin/statistics/overview")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public AdminUserStatisticsDTO getUserStatisticsOverview(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(required = false) String period
+    ) throws UnauthorizedAreaException {
+        return userService.getUserStatisticsOverview(adminDetails.getUsername(), period);
+    }
+
+    // Kullanıcı büyüme analizi
+    @GetMapping("/admin/statistics/growth")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public UserGrowthAnalysisDTO getUserGrowthAnalysis(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String groupBy
+    ) throws UnauthorizedAreaException {
+        return userService.getUserGrowthAnalysis(adminDetails.getUsername(), period, groupBy);
+    }
+
+    // En aktif kullanıcılar
+    @GetMapping("/admin/statistics/most-active")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public List<MostActiveUserDTO> getMostActiveUsers(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) String period
+    ) throws UnauthorizedAreaException {
+        return userService.getMostActiveUsers(adminDetails.getUsername(), limit, period);
+    }
+
+    @GetMapping("/admin/bulk-export")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Resource> bulkExportUsers(
+            @RequestParam(required = false) List<Long> userIds,
+            @RequestParam(defaultValue = "CSV") String format, // CSV, EXCEL, JSON
+            @RequestParam(required = false) List<String> fields,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UnauthorizedAreaException {
+        return userService.bulkExportUsers(adminDetails.getUsername(), userIds, format, fields);
+    }
+// ===== BİLDİRİM YÖNETİMİ =====
+
+
+
+    // Toplu bildirim gönderme
+    @PostMapping("/admin/notifications/broadcast")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage sendBroadcastNotification(
+            @RequestBody BroadcastNotificationRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UnauthorizedAreaException {
+        return userService.sendBroadcastNotification(adminDetails.getUsername(), request);
+    }
+
+    // Hedefli bildirim gönderme
+    @PostMapping("/admin/notifications/targeted")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseMessage sendTargetedNotification(
+            @RequestBody TargetedNotificationRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UnauthorizedAreaException {
+        return userService.sendTargetedNotification(adminDetails.getUsername(), request);
+    }
+
+    // Bildirim istatistikleri
+    @GetMapping("/admin/notifications/statistics")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public NotificationStatisticsDTO getNotificationStatistics(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(required = false) String period
+    ) throws UnauthorizedAreaException {
+        return userService.getNotificationStatistics(adminDetails.getUsername(), period);
+    }
+// ===== GELİŞMİŞ ARAMA VE FİLTRELEME =====
+
+    // Gelişmiş kullanıcı arama
+    @PostMapping("/admin/search/advanced")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public Page<CacheUserDTO> advancedUserSearch(
+            @RequestBody AdvancedUserSearchRequest request,
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @PageableDefault(size = 20) Pageable pageable
+    ) throws UnauthorizedAreaException {
+        return userService.advancedUserSearch(adminDetails.getUsername(), request, pageable);
+    }
+
+    // Kullanıcı davranış analizi
+    @GetMapping("/admin/{userId}/behavior-analysis")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public UserBehaviorAnalysisDTO getUserBehaviorAnalysis(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String period,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.getUserBehaviorAnalysis(adminDetails.getUsername(), userId, period);
+    }
+
+    // Risk skoru hesaplama
+    @GetMapping("/admin/{userId}/risk-score")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public UserRiskScoreDTO getUserRiskScore(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.getUserRiskScore(adminDetails.getUsername(), userId);
+    }
+
+// ===== SİSTEM SAĞLIĞI VE MONİTÖRİNG =====
+
+    // Kullanıcı oturum durumları
+    @GetMapping("/admin/sessions/overview")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public SessionOverviewDTO getSessionOverview(
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UnauthorizedAreaException {
+        return userService.getSessionOverview(adminDetails.getUsername());
+    }
+
+    // Aktif kullanıcı istatistikleri
+    @GetMapping("/admin/statistics/active-users")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ActiveUserStatisticsDTO getActiveUserStatistics(
+            @AuthenticationPrincipal UserDetails adminDetails,
+            @RequestParam(required = false) String timeframe // REALTIME, HOURLY, DAILY, WEEKLY
+    ) throws UnauthorizedAreaException {
+        return userService.getActiveUserStatistics(adminDetails.getUsername(), timeframe);
+    }
+
+// ===== DATA PRIVACY VE GDPR =====
+
+    // Kullanıcı verilerini export etme (GDPR)
+    @GetMapping("/admin/{userId}/export-data")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Resource> exportUserDataForAdmin(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "JSON") String format,
+            @AuthenticationPrincipal UserDetails adminDetails
+    ) throws UserNotFoundException, UnauthorizedAreaException {
+        return userService.exportUserDataForAdmin(adminDetails.getUsername(), userId, format);
     }
 
     @PatchMapping("/update-fcm-token")
@@ -197,7 +552,7 @@ public class UserController {
         return userService.searchUser(userDetails.getUsername(), query, page, size);
     }
 
-
+*/
     // FAVORİ KARTLAR
     @GetMapping("/favorites/cards")
     public List<FavoriteBusCardDTO> getFavoriteCards(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
@@ -291,12 +646,6 @@ public class UserController {
             @PageableDefault(size = 10, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable
     ) throws UserNotFoundException {
         return userService.getUserActivityLog(userDetails.getUsername(), pageable);
-    }
-
-
-    @GetMapping("/export")
-    public CacheUserDTO exportUserData(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
-        return userService.exportUserData(userDetails.getUsername());
     }
 
 

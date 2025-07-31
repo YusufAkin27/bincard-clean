@@ -149,10 +149,8 @@ public class PaymentPointManager implements PaymentPointService {
                 lastLocation = null;
             }
 
-            // 2. Ödeme noktalarını çek
             Page<PaymentPoint> paymentPoints = paymentPointRepository.findAll(pageable);
 
-            // 3. Aktif ve (varsa) yakın olan ödeme noktalarını filtrele
             List<PaymentPointDTO> filteredList = paymentPoints.getContent().stream()
                     .filter(pp -> {
                         // Kullanıcının konumu yoksa tüm aktifleri döndür

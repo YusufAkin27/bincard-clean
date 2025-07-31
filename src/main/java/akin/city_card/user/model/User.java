@@ -2,8 +2,8 @@ package akin.city_card.user.model;
 
 import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
+import akin.city_card.contract.model.UserContractAcceptance;
 import akin.city_card.news.model.NewsLike;
-import akin.city_card.news.model.NewsType;
 import akin.city_card.news.model.NewsViewHistory;
 import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationPreferences;
@@ -16,16 +16,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.io.Serializable;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
-import java.util.Set;
 
 @Entity
 @Data
@@ -130,5 +124,11 @@ public class User extends SecurityUser {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<Notification> notifications = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<UserContractAcceptance> contractAcceptances = new ArrayList<>();
+
+
 
 }

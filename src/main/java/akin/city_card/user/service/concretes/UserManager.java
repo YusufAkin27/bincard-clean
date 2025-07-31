@@ -3,6 +3,7 @@ package akin.city_card.user.service.concretes;
 import akin.city_card.admin.core.converter.AuditLogConverter;
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
+import akin.city_card.admin.model.ActionType;
 import akin.city_card.admin.model.AuditLog;
 import akin.city_card.admin.repository.AuditLogRepository;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
@@ -14,6 +15,12 @@ import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.cloudinary.MediaUploadService;
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.request.RejectContractRequest;
+import akin.city_card.contract.core.response.AcceptedContractDTO;
+import akin.city_card.contract.core.response.UserContractDTO;
+import akin.city_card.contract.model.Contract;
+import akin.city_card.contract.model.UserContractAcceptance;
 import akin.city_card.location.model.Location;
 import akin.city_card.mail.EmailMessage;
 import akin.city_card.mail.MailService;
@@ -27,8 +34,11 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
 import akin.city_card.route.model.Route;
 import akin.city_card.route.repository.RouteRepository;
+import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.SecurityUser;
+import akin.city_card.security.entity.Token;
+import akin.city_card.security.entity.enums.TokenType;
 import akin.city_card.security.exception.InvalidVerificationCodeException;
 import akin.city_card.security.exception.UserNotActiveException;
 import akin.city_card.security.exception.UserNotFoundException;
@@ -60,6 +70,7 @@ import akin.city_card.wallet.exceptions.WalletIsEmptyException;
 import akin.city_card.wallet.model.Wallet;
 import akin.city_card.wallet.repository.WalletRepository;
 import com.fasterxml.jackson.annotation.JsonView;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -71,9 +82,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -101,7 +114,6 @@ public class UserManager implements UserService {
     private final AuditLogConverter auditLogConverter;
     private final FCMService fcmService;
     private final TokenRepository tokenRepository;
-
 
 
     @Override
@@ -1015,6 +1027,189 @@ public class UserManager implements UserService {
 
         return new ResponseMessage("E-posta adresiniz başarıyla doğrulandı.", true);
     }
+
+    @Override
+    @Transactional
+    public ResponseMessage deleteAccount(String username, DeleteAccountRequest request, HttpServletRequest httpRequest)
+            throws ApproveIsConfirmDeletionException, UserNotFoundException, PasswordsDoNotMatchException, WalletBalanceNotZeroException {
+
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
+        if (user.getWallet() != null && user.getWallet().getBalance() != null) {
+            if (user.getWallet().getBalance().compareTo(BigDecimal.ZERO) > 0) {
+                throw new WalletBalanceNotZeroException();
+            }
+        }
+
+        if (!request.isConfirmDeletion()) {
+            throw new ApproveIsConfirmDeletionException();
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new PasswordsDoNotMatchException();
+        }
+
+        user.setDeleted(true);
+        user.setStatus(UserStatus.DELETED);
+        tokenRepository.deleteBySecurityUserId(user.getId());
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(user);
+        auditLog.setAction(ActionType.DELETE_USER);
+        auditLog.setDescription("Kullanıcı hesap sildi açıklama :" + request.getReason());
+        auditLog.setTimestamp(LocalDateTime.now());
+
+        DeviceInfo deviceInfo = new DeviceInfo();
+        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
+
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        }
+        deviceInfo.setIpAddress(ipAddress);
+
+        auditLog.setDeviceInfo(deviceInfo);
+
+        auditLogRepository.save(auditLog);
+
+        if (user.getProfileInfo().getEmail() != null) {
+            EmailMessage message = new EmailMessage();
+            message.setToEmail(user.getProfileInfo().getEmail());
+            message.setSubject("Hesap Silme Talebiniz Gerçekleştirildi");
+
+            String body = """
+                        <html>
+                            <body style="font-family: Arial, sans-serif; color: #333;">
+                                <h2>Sayın %s,</h2>
+                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla silinmiştir.</p>
+                                <p>Silme sebebiniz: <em>%s</em></p>
+                                <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                                <br>
+                                <p>Saygılarımızla,</p>
+                                <p><strong>Destek Ekibi</strong></p>
+                            </body>
+                        </html>
+                    """.formatted(
+                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),  // veya user.getFullName()
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
+                    request.getReason() != null ? request.getReason() : "Belirtilmedi"
+            );
+
+            message.setBody(body);
+            message.setHtml(true);
+            mailService.queueEmail(message);
+        }
+
+        return new ResponseMessage("Hesabınız silindi", true);
+    }
+
+    @Override
+    @Transactional
+    public ResponseMessage freezeAccount(String username, FreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException {
+
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
+
+        user.setStatus(UserStatus.FROZEN);
+        userRepository.save(user);
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(user);
+        auditLog.setAction(ActionType.FREEZE_ACCOUNT);
+        auditLog.setDescription("Kullanıcı hesabını geçici olarak dondurdu.");
+        auditLog.setTimestamp(LocalDateTime.now());
+
+        DeviceInfo deviceInfo = new DeviceInfo();
+        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
+
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        }
+        deviceInfo.setIpAddress(ipAddress);
+
+        String userAgent = httpRequest.getHeader("User-Agent");
+        deviceInfo.setUserAgent(userAgent);
+
+        auditLog.setDeviceInfo(deviceInfo);
+        auditLogRepository.save(auditLog);
+
+        return new ResponseMessage("Hesabınız başarıyla geçici olarak donduruldu.", true);
+    }
+
+
+
+    @Override
+    @Transactional
+    public ResponseMessage terminateSessionByAdmin(Long userId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException {
+        SecurityUser user = securityUserRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException());
+
+        Optional<Token> tokenOpt = tokenRepository.findTokenBySecurityUser_IdAndTokenType(userId, TokenType.REFRESH);
+
+        if (tokenOpt.isEmpty()) {
+            throw new SessionNotFoundException();
+        }
+
+        Token token = tokenOpt.get();
+
+        if (token.getExpiresAt() != null && token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new SessionAlreadyExpiredException();
+        }
+
+        tokenRepository.deleteBySecurityUserId(userId);
+
+        // Audit log kaydı
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(user);
+        auditLog.setAction(ActionType.ADMIN_TERMINATE_SESSION);
+        auditLog.setDescription("Admin tarafından oturum sonlandırıldı. User ID: " + userId);
+        auditLog.setTimestamp(LocalDateTime.now());
+        auditLogRepository.save(auditLog);
+
+        return new ResponseMessage("Kullanıcının oturumu başarıyla sonlandırıldı.", true);
+    }
+
+
+    @Override
+    @Transactional
+    public ResponseMessage unfreezeAccount(String username, UnfreezeAccountRequest request, HttpServletRequest httpRequest)
+            throws UserNotFoundException, AccountNotFrozenException {
+
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
+
+        if (user.getStatus() != UserStatus.FROZEN) {
+            throw new AccountNotFrozenException();
+        }
+
+        user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(user);
+        auditLog.setAction(ActionType.UNFREEZE_ACCOUNT);
+        auditLog.setDescription("Kullanıcı hesabını yeniden aktif hale getirdi.");
+        auditLog.setTimestamp(LocalDateTime.now());
+
+        DeviceInfo deviceInfo = new DeviceInfo();
+        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
+
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        }
+        deviceInfo.setIpAddress(ipAddress);
+
+        String userAgent = httpRequest.getHeader("User-Agent");
+        deviceInfo.setUserAgent(userAgent);
+
+        auditLog.setDeviceInfo(deviceInfo);
+        auditLogRepository.save(auditLog);
+
+        return new ResponseMessage("Hesabınız yeniden aktifleştirildi.", true);
+    }
+
 
 
     private String buildEmailBodyFromCacheDTO(CacheUserDTO dto) {
