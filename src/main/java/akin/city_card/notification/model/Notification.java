@@ -3,16 +3,15 @@ package akin.city_card.notification.model;
 import akin.city_card.user.model.User;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Setter
+@Data
+@AllArgsConstructor
+@Builder
 @NoArgsConstructor
 public class Notification {
 

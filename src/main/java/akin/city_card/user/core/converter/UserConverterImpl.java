@@ -1,5 +1,7 @@
 package akin.city_card.user.core.converter;
 
+import akin.city_card.geoAlert.core.response.GeoAlertDTO;
+import akin.city_card.geoAlert.model.GeoAlert;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.Role;
@@ -122,21 +124,6 @@ public class UserConverterImpl implements UserConverter {
                 .build();
     }
 
-    @Override
-    public GeoAlertDTO toGeoAlertDTO(GeoAlert geoAlert) {
-        return GeoAlertDTO.builder()
-                .id(geoAlert.getId())
-                .alertName(geoAlert.getAlertName())
-                .stationId(geoAlert.getStation().getId())
-                .radiusMeters(geoAlert.getRadiusMeters())
-                .routeId(geoAlert.getRoute().getId())
-                .updatedAt(geoAlert.getUpdatedAt())
-                .userId(geoAlert.getUser().getId())
-                .createdAt(geoAlert.getCreatedAt())
-                .notifyBeforeMinutes(geoAlert.getNotifyBeforeMinutes())
-                .build();
-
-    }
 
 
     @Override

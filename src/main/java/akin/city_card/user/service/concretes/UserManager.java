@@ -6,10 +6,6 @@ import akin.city_card.admin.core.response.AuditLogDTO;
 import akin.city_card.admin.model.ActionType;
 import akin.city_card.admin.model.AuditLog;
 import akin.city_card.admin.repository.AuditLogRepository;
-import akin.city_card.autoTopUp.core.request.AutoTopUpConfigRequest;
-import akin.city_card.autoTopUp.core.response.AutoTopUpConfigDTO;
-import akin.city_card.autoTopUp.model.AutoTopUpConfig;
-import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.converter.BusCardConverter;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
@@ -18,6 +14,7 @@ import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.cloudinary.MediaUploadService;
+
 import akin.city_card.location.model.Location;
 import akin.city_card.mail.EmailMessage;
 import akin.city_card.mail.MailService;
@@ -51,7 +48,6 @@ import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.user.model.*;
-import akin.city_card.autoTopUp.repository.AutoTopUpConfigRepository;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
@@ -689,16 +685,6 @@ public class UserManager implements UserService {
         return new ResponseMessage("Favoriden silme işlemi " + (isSuccess ? "başarılı" : "başarısız"), isSuccess);
     }
 
-    @Override
-    public WalletDTO getWallet(String username) throws WalletIsEmptyException, UserNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-
-        Wallet wallet = user.getWallet();
-        if (wallet == null) {
-            throw new WalletIsEmptyException();
-        }
-        return walletConverter.convertToDTO(wallet);
-    }
 
     @Override
     @Transactional
@@ -784,64 +770,6 @@ public class UserManager implements UserService {
         return new ResponseMessage("arama geçmişi silindi", true);
     }
 
-    @Override
-    @JsonView(Views.User.class)
-    public List<GeoAlertDTO> getGeoAlerts(String username) throws UserNotFoundException {
-        return userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new).getGeoAlerts().stream().filter(GeoAlert::isActive).map(userConverter::toGeoAlertDTO).toList();
-    }
-
-    @Override
-    public ResponseMessage addGeoAlert(String username, GeoAlertRequest alertRequest)
-            throws UserNotFoundException, RouteNotFoundException, StationNotFoundException, RouteNotFoundStationException {
-
-        // Kullanıcı kontrolü
-        User user = userRepository.findByUserNumber(username)
-                .orElseThrow(UserNotFoundException::new);
-
-        // Rota kontrolü
-        Route route = routeRepository.findById(alertRequest.getRouteId())
-                .orElseThrow(RouteNotFoundException::new);
-
-        // İstasyon kontrolü
-        Station station = stationRepository.findById(alertRequest.getStationId())
-                .orElseThrow(StationNotFoundException::new);
-
-        // İstasyon bu rotaya ait mi kontrolü
-        boolean stationExistsInRoute = route.getDirections().stream()
-                .flatMap(dir -> dir.getStationNodes().stream())
-                .anyMatch(node -> node.getFromStation().equals(station) || node.getToStation().equals(station));
-
-        if (!stationExistsInRoute) {
-            throw new RouteNotFoundStationException();
-        }
-
-        // Uyarı oluşturuluyor
-        GeoAlert geoAlert = new GeoAlert();
-        geoAlert.setUser(user);
-        geoAlert.setRoute(route);
-        geoAlert.setStation(station);
-        geoAlert.setAlertName(alertRequest.getAlertName());
-        geoAlert.setNotifyBeforeMinutes(alertRequest.getNotifyBeforeMinutes());
-        geoAlert.setRadiusMeters(alertRequest.getRadiusMeters());
-        geoAlert.setActive(true);
-        geoAlert.setCreatedAt(LocalDateTime.now());
-        geoAlert.setUpdatedAt(LocalDateTime.now());
-
-        // Kullanıcının uyarı listesine ekle (eğer cascade varsa otomatik kaydedilir)
-        user.getGeoAlerts().add(geoAlert);
-
-        return new ResponseMessage(" Araç konum uyarısı başarıyla eklendi.", true);
-    }
-
-    @Override
-    public ResponseMessage deleteGeoAlert(String username, Long alertId) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        boolean isDeleted = user.getGeoAlerts().removeIf(g -> g.getId().equals(alertId));
-        if (isDeleted) {
-            return new ResponseMessage(alertId + "araç konum uyarısı silindi", true);
-        }
-        return new ResponseMessage("araç konum uyarısı bulunamadı", true);
-    }
 
     @Override
     @JsonView(Views.User.class)

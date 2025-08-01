@@ -6,6 +6,7 @@ import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
+import akin.city_card.geoAlert.core.request.GeoAlertRequest;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
@@ -14,7 +15,7 @@ import akin.city_card.security.exception.*;
 import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.CacheUserDTO;
-import akin.city_card.user.core.response.GeoAlertDTO;
+import akin.city_card.geoAlert.core.response.GeoAlertDTO;
 import akin.city_card.user.core.response.SearchHistoryDTO;
 import akin.city_card.user.core.response.Views;
 import akin.city_card.user.exceptions.*;
@@ -602,23 +603,7 @@ public class UserController {
         return userService.clearSearchHistory(userDetails.getUsername());
     }
 
-    // KONUMA DAYALI UYARILAR
-    @GetMapping("/geo-alerts")
-    public List<GeoAlertDTO> getGeoAlerts(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
-        return userService.getGeoAlerts(userDetails.getUsername());
-    }
 
-    @PostMapping("/geo-alerts")
-    public ResponseMessage addGeoAlert(@AuthenticationPrincipal UserDetails userDetails,
-                                       @RequestBody GeoAlertRequest alertRequest) throws UserNotFoundException, StationNotFoundException, RouteNotFoundException, RouteNotFoundStationException {
-        return userService.addGeoAlert(userDetails.getUsername(), alertRequest);
-    }
-
-    @DeleteMapping("/geo-alerts/{alertId}")
-    public ResponseMessage deleteGeoAlert(@AuthenticationPrincipal UserDetails userDetails,
-                                          @PathVariable Long alertId) throws UserNotFoundException {
-        return userService.deleteGeoAlert(userDetails.getUsername(), alertId);
-    }
 
 
     @GetMapping("/activity-log")

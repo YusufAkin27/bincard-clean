@@ -9,5 +9,5 @@ public enum NotificationType {
     ANNOUNCEMENT,  // Duyurular
     CAMPAIGN,      // Kampanyalar
     PROMOTION,     // Tanıtımlar
-    ALERT, EVENT          // Etkinlikler
+    ALERT, GEO_ALERT, EVENT          // Etkinlikler
 }

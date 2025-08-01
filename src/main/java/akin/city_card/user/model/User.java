@@ -4,6 +4,7 @@ import akin.city_card.autoTopUp.model.AutoTopUpConfig;
 import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.contract.model.UserContractAcceptance;
+import akin.city_card.geoAlert.model.GeoAlert;
 import akin.city_card.news.model.NewsLike;
 import akin.city_card.news.model.NewsViewHistory;
 import akin.city_card.notification.model.Notification;

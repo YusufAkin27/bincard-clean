@@ -81,4 +81,6 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
 
     @Query("SELECT b FROM Bus b JOIN FETCH b.assignedRoute WHERE b.id = :busId AND b.isDeleted = false")
     Optional<Bus> findByIdWithRoute(@Param("busId") Long busId);
+
+    List<Bus> findByAssignedRouteAndIsActiveAndStatus(Route route, boolean b, BusStatus busStatus);
 }

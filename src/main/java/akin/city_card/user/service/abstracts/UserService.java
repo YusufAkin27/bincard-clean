@@ -2,12 +2,12 @@ package akin.city_card.user.service.abstracts;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
-import akin.city_card.autoTopUp.core.request.AutoTopUpConfigRequest;
-import akin.city_card.autoTopUp.core.response.AutoTopUpConfigDTO;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
+import akin.city_card.geoAlert.core.request.GeoAlertRequest;
+import akin.city_card.geoAlert.core.response.GeoAlertDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
@@ -75,7 +75,6 @@ public interface UserService {
 
     ResponseMessage removeFavoriteCard(String username, Long cardId) throws UserNotFoundException;
 
-    WalletDTO getWallet(String username) throws WalletIsEmptyException, UserNotFoundException;
 
     CacheUserDTO updateNotificationPreferences(String username, NotificationPreferencesDTO preferences) throws UserNotFoundException;
 
@@ -86,11 +85,6 @@ public interface UserService {
 
     ResponseMessage clearSearchHistory(String username) throws UserNotFoundException;
 
-    List<GeoAlertDTO> getGeoAlerts(String username) throws UserNotFoundException;
-
-    ResponseMessage addGeoAlert(String username, GeoAlertRequest alertRequest) throws UserNotFoundException, RouteNotFoundException, StationNotFoundException, RouteNotFoundStationException;
-
-    ResponseMessage deleteGeoAlert(String username, Long alertId) throws UserNotFoundException;
 
     Page<AuditLogDTO> getUserActivityLog(String username, Pageable pageable) throws UserNotFoundException;
 
