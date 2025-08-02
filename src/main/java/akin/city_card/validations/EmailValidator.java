@@ -2,7 +2,6 @@ package akin.city_card.validations;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-
 import java.util.regex.Pattern;
 
 public class EmailValidator implements ConstraintValidator<ValidEmail, String> {

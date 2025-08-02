@@ -633,13 +633,7 @@ public class UserManager implements UserService {
     @Override
     @Transactional
     public ResponseMessage addFavoriteCard(String username, FavoriteCardRequest request) throws UserNotFoundException {
-        CacheUserDTO cacheUserDTO = cachedUserLookupService.findByUsername(username);
-        if (cacheUserDTO == null) {
-            throw new UserNotFoundException();
-        }
-
-        User user = userRepository.findById(cacheUserDTO.getId())
-                .orElseThrow(UserNotFoundException::new);
+        User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
 
         BusCard busCard = busCardRepository.findById(request.getBusCardId())
                 .orElseThrow(() -> new RuntimeException("BusCard bulunamadı - ID: " + request.getBusCardId()));
