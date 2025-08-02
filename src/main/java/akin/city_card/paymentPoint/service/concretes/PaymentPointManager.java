@@ -128,43 +128,11 @@ public class PaymentPointManager implements PaymentPointService {
     @Transactional(readOnly = true)
     public DataResponseMessage<PageDTO<PaymentPointDTO>> getAll(String username, Pageable pageable) {
         try {
-            akin.city_card.location.model.Location lastLocation;
 
-            if (username != null && !username.isBlank()) {
-                Optional<SecurityUser> optionalUser = securityUserRepository.findByUserNumber(username);
-                if (optionalUser.isPresent()) {
-                    SecurityUser user = optionalUser.get();
-                    List<akin.city_card.location.model.Location> locationHistory = user.getLocationHistory();
-                    if (locationHistory != null && !locationHistory.isEmpty()) {
-                        lastLocation = locationHistory.stream()
-                                .max(Comparator.comparing(akin.city_card.location.model.Location::getRecordedAt))
-                                .orElse(null);
-                    } else {
-                        lastLocation = null;
-                    }
-                } else {
-                    lastLocation = null;
-                }
-            } else {
-                lastLocation = null;
-            }
 
             Page<PaymentPoint> paymentPoints = paymentPointRepository.findAll(pageable);
 
             List<PaymentPointDTO> filteredList = paymentPoints.getContent().stream()
-                    .filter(pp -> {
-                        // Kullanıcının konumu yoksa tüm aktifleri döndür
-                        if (lastLocation == null) return true;
-
-                        akin.city_card.paymentPoint.model.Location ppLocation = pp.getLocation();
-                        if (ppLocation == null) return false;
-
-                        double distance = haversineDistance(
-                                lastLocation.getLatitude(), lastLocation.getLongitude(),
-                                ppLocation.getLatitude(), ppLocation.getLongitude()
-                        );
-                        return distance <= 5.0;
-                    })
                     .map(paymentPointConverter::toDto)
                     .toList();
 

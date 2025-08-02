@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +62,27 @@ public class GeoAlertManager implements GeoAlertService {
         return activeAlerts.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public long countGeoAlertsByStatus(String username, GeoAlertStatus status) {
+
+        return 0;
+    }
+
+    @Override
+    public ResponseMessage deleteGeoAlertAsAdmin(Long alertId, String username) {
+        return null;
+    }
+
+    @Override
+    public List<GeoAlertDTO> getGeoAlertsByUsername(UserDetails userDetails, String username, GeoAlertStatus status) {
+        return List.of();
+    }
+
+    @Override
+    public List<GeoAlertDTO> getAllGeoAlerts(String username, GeoAlertStatus status) {
+        return List.of();
     }
 
     @Override

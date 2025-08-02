@@ -18,9 +18,9 @@ import akin.city_card.user.exceptions.AutoTopUpConfigNotFoundException;
 import akin.city_card.user.model.User;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.wallet.exceptions.WalletIsEmptyException;
+import akin.city_card.wallet.model.TransactionType;
 import akin.city_card.wallet.model.Wallet;
 import akin.city_card.wallet.model.WalletTransaction;
-import akin.city_card.wallet.model.TransactionType;
 import akin.city_card.wallet.repository.WalletRepository;
 import akin.city_card.wallet.repository.WalletTransactionRepository;
 import jakarta.transaction.Transactional;
@@ -30,7 +30,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -114,7 +117,7 @@ public class AutoTopUpManager implements AutoTopUpService {
             throws UserNotFoundException, AutoTopUpConfigNotFoundException, BusCardNotFoundException {
 
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-
+        BusCard busCard = busCardRepository.findById(configRequest.getBusCard()).orElseThrow(BusCardNotFoundException::new);
         AutoTopUpConfig config = autoTopUpConfigRepository.findByIdAndUser(configId, user)
                 .orElseThrow(AutoTopUpConfigNotFoundException::new);
 
@@ -127,6 +130,7 @@ public class AutoTopUpManager implements AutoTopUpService {
 
         config.setThreshold(configRequest.getThreshold());
         config.setAmount(configRequest.getAmount());
+        config.setBusCard(busCard);
 
         autoTopUpConfigRepository.save(config);
 
@@ -295,7 +299,7 @@ public class AutoTopUpManager implements AutoTopUpService {
                 String errorMsg = "Cüzdan bakiyesi yetersiz. Mevcut: " + wallet.getBalance() +
                         " TL, Gerekli: " + config.getAmount() + " TL";
 
-            AutoTopUpLog failLog = logBuilder
+                AutoTopUpLog failLog = logBuilder
                         .success(false)
                         .failureReason(errorMsg)
                         .build();

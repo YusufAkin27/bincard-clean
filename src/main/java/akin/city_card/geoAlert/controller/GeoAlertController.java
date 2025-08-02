@@ -3,6 +3,7 @@ package akin.city_card.geoAlert.controller;
 import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.geoAlert.core.request.GeoAlertRequest;
 import akin.city_card.geoAlert.core.response.GeoAlertDTO;
+import akin.city_card.geoAlert.model.GeoAlertStatus;
 import akin.city_card.geoAlert.service.abstracts.GeoAlertService;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.route.exceptions.RouteNotFoundStationException;
@@ -86,7 +87,7 @@ public class GeoAlertController {
     }
 
     /**
-     * Geo uyarısını kalıcı olarak sil
+     * Geo uyarısını kalıcı olarak sil (kullanıcı tarafından)
      */
     @DeleteMapping("/alerts/{alertId}")
     public ResponseEntity<ResponseMessage> deleteGeoAlert(
@@ -115,15 +116,57 @@ public class GeoAlertController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Belirli bir rota için kullanıcının uyarı sayısını getir
-     */
-    @GetMapping("/alerts/count")
-    public ResponseEntity<Integer> getActiveAlertCount(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) Long routeId) throws UserNotFoundException {
+    // ===================== ADMIN ENDPOINTLER ======================
 
-        int count = geoAlertService.getActiveAlertCount(userDetails.getUsername(), routeId);
+    /**
+     * Tüm kullanıcıların uyarılarını getir (isteğe bağlı statü filtresiyle)
+     */
+    @GetMapping("/admin/alerts")
+    public ResponseEntity<List<GeoAlertDTO>> getAllGeoAlerts(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) GeoAlertStatus status) {
+
+        log.info("Admin tarafından tüm uyarılar isteniyor. Filtre: status={}", status);
+        List<GeoAlertDTO> alerts = geoAlertService.getAllGeoAlerts(userDetails.getUsername(), status);
+        return ResponseEntity.ok(alerts);
+    }
+
+    /**
+     * Belirli bir kullanıcının uyarılarını getir
+     */
+    @GetMapping("/admin/alerts/user/{username}")
+    public ResponseEntity<List<GeoAlertDTO>> getGeoAlertsByUser(
+            @PathVariable String username,
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) GeoAlertStatus status) {
+
+        log.info("Admin tarafından {} kullanıcısının uyarıları isteniyor. Statü: {}", username, status);
+        List<GeoAlertDTO> alerts = geoAlertService.getGeoAlertsByUsername(userDetails, username, status);
+        return ResponseEntity.ok(alerts);
+    }
+
+    /**
+     * Belirli bir uyarıyı admin olarak sil
+     */
+    @DeleteMapping("/admin/alerts/{alertId}")
+    public ResponseEntity<ResponseMessage> deleteAlertById(
+            @PathVariable Long alertId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.warn("Admin tarafından {} ID'li uyarı siliniyor", alertId);
+        ResponseMessage response = geoAlertService.deleteGeoAlertAsAdmin(alertId, userDetails.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Belirli bir statüye sahip kaç uyarı olduğunu getir (admin)
+     */
+    @GetMapping("/admin/alerts/count")
+    public ResponseEntity<Long> countGeoAlertsByStatus(
+            @RequestParam(required = false) GeoAlertStatus status,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        long count = geoAlertService.countGeoAlertsByStatus(userDetails.getUsername(), status);
         return ResponseEntity.ok(count);
     }
 }
