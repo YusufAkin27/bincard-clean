@@ -69,7 +69,8 @@ public class SecurityConfig {
                 "/v1/api/simulation/**",
                 "/v1/api/bus/**",
                 "/v1/api/station/**",
-                "/v1/api/route/**"
+                "/v1/api/route/**",
+                "/v1/api/health/**"
         };
 
 
