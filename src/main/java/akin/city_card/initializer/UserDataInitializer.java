@@ -69,7 +69,7 @@ private final PasswordEncoder passwordEncoder;
                         .email("user" + i + "@example.com")
                         .profilePicture("https://example.com/profile" + i + ".jpg")
                         .build())
-                .deviceInfo(DeviceInfo.builder()
+                .currentDeviceInfo(DeviceInfo.builder()
                         .ipAddress("192.168.1." + i)
                         .fcmToken("token-" + i)
                         .build())

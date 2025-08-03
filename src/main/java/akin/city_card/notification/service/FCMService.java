@@ -21,9 +21,9 @@ public class FCMService {
 
         notificationService.saveNotification(user, title, body, type, targetUrl);
 
-        if (user.getDeviceInfo() == null ||
-                user.getDeviceInfo().getFcmToken() == null ||
-                user.getDeviceInfo().getFcmToken().isBlank()) {
+        if (user.getCurrentDeviceInfo() == null ||
+                user.getCurrentDeviceInfo().getFcmToken() == null ||
+                user.getCurrentDeviceInfo().getFcmToken().isBlank()) {
             System.out.println("FCM token yok, bildirim gönderilmeyecek.");
             return;
         }
@@ -49,7 +49,7 @@ public class FCMService {
                 .build();
 
         Message message = Message.builder()
-                .setToken(user.getDeviceInfo().getFcmToken())
+                .setToken(user.getCurrentDeviceInfo().getFcmToken())
                 .setNotification(firebaseNotification)
                 .setAndroidConfig(androidConfig)
                 .setApnsConfig(apnsConfig)

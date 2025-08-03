@@ -172,7 +172,6 @@ public class GeoIpService {
                 String result = EntityUtils.toString(entity);
                 GeoLocationData geoData = objectMapper.readValue(result, GeoLocationData.class);
 
-                // Validate the response data
                 if (isValidGeoData(geoData)) {
                     logger.info("Valid GeoIP data received for IP {}: city={}, region={}, country={}, timezone={}, org={}",
                             ipAddress,

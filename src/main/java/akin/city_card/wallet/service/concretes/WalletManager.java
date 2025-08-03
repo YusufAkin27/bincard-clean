@@ -1026,7 +1026,7 @@ public class WalletManager implements WalletService {
             buyer.setLastLoginDate(lastLogin.format(formatter));
             buyer.setRegistrationDate(user.getCreatedAt().format(formatter));
             buyer.setRegistrationAddress("Türkiye");
-            buyer.setIp(user.getDeviceInfo().getIpAddress());
+            buyer.setIp(user.getCurrentDeviceInfo().getIpAddress());
             buyer.setCity("İstanbul");
             buyer.setCountry("Turkey");
             buyer.setZipCode("34000");

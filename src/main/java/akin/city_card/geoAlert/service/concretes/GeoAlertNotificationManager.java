@@ -60,9 +60,9 @@ public class GeoAlertNotificationManager {
         // Push notification kontrolü
         if (user.getNotificationPreferences().isPushEnabled() &&
                 user.getNotificationPreferences().isFcmActive() &&
-                user.getDeviceInfo() != null &&
-                user.getDeviceInfo().getFcmToken() != null &&
-                !user.getDeviceInfo().getFcmToken().isBlank()) {
+                user.getCurrentDeviceInfo() != null &&
+                user.getCurrentDeviceInfo().getFcmToken() != null &&
+                !user.getCurrentDeviceInfo().getFcmToken().isBlank()) {
 
             sendPushNotification(user, title, message);
         }

@@ -19,7 +19,7 @@ import akin.city_card.geoIpService.GeoLocationData;
 import akin.city_card.location.model.Location;
 import akin.city_card.mail.EmailMessage;
 import akin.city_card.mail.MailService;
-import akin.city_card.news.exceptions.UnauthorizedAreaException;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationPreferences;
@@ -29,9 +29,8 @@ import akin.city_card.notification.service.FCMService;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
+import akin.city_card.security.entity.Role;
 import akin.city_card.security.entity.SecurityUser;
-import akin.city_card.security.entity.Token;
-import akin.city_card.security.entity.enums.TokenType;
 import akin.city_card.security.exception.*;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.security.repository.TokenRepository;
@@ -43,10 +42,7 @@ import akin.city_card.user.core.response.CacheUserDTO;
 import akin.city_card.user.core.response.SearchHistoryDTO;
 import akin.city_card.user.core.response.Views;
 import akin.city_card.user.exceptions.*;
-import akin.city_card.user.model.PasswordResetToken;
-import akin.city_card.user.model.SearchHistory;
-import akin.city_card.user.model.User;
-import akin.city_card.user.model.UserStatus;
+import akin.city_card.user.model.*;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
@@ -57,13 +53,14 @@ import akin.city_card.verification.model.VerificationPurpose;
 import akin.city_card.verification.repository.VerificationCodeRepository;
 import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import com.fasterxml.jackson.annotation.JsonView;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -152,7 +149,6 @@ public class UserManager implements UserService {
         );
 
 
-
         return new ResponseMessage("Kullanıcı başarıyla oluşturuldu. Doğrulama kodu SMS olarak gönderildi.", true);
     }
 
@@ -196,7 +192,7 @@ public class UserManager implements UserService {
 
 
     @Transactional
-    public void sendVerificationCode(SecurityUser user,VerificationPurpose purpose) {
+    public void sendVerificationCode(SecurityUser user, VerificationPurpose purpose) {
         String code = randomSixDigit();
         LocalDateTime now = LocalDateTime.now();
 
@@ -222,6 +218,7 @@ public class UserManager implements UserService {
  */
         System.out.println("Yeni kayıt doğrulama kodu: " + code);
     }
+
     public void updateDeviceInfoAndCreateAuditLog(
             SecurityUser user,
             HttpServletRequest httpRequest,
@@ -236,7 +233,7 @@ public class UserManager implements UserService {
         String referer = httpRequest.getHeader("Referer");
         String fullMetadata = (metadata == null ? "" : metadata + ", ") + (referer != null ? "Referer: " + referer : "");
 
-        user.setDeviceInfo(deviceInfo);
+        user.setCurrentDeviceInfo(deviceInfo);
 
         createAuditLog(
                 user,
@@ -383,7 +380,6 @@ public class UserManager implements UserService {
     }
 
 
-
     @Override
     @Transactional
     public ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest, HttpServletRequest httpServletRequest) throws UserNotFoundException, EmailAlreadyExistsException {
@@ -475,8 +471,8 @@ public class UserManager implements UserService {
 
 
         if (isUpdated) {
-            if (user.getDeviceInfo() == null) {
-                user.setDeviceInfo(new DeviceInfo());
+            if (user.getCurrentDeviceInfo() == null) {
+                user.setCurrentDeviceInfo(new DeviceInfo());
             }
 
             userRepository.save(user);
@@ -516,8 +512,8 @@ public class UserManager implements UserService {
             responseMessages.add(create(createUserRequest, httpServletRequest));
         }
 
-        if (securityUser.getDeviceInfo() == null) {
-            securityUser.setDeviceInfo(new DeviceInfo());
+        if (securityUser.getCurrentDeviceInfo() == null) {
+            securityUser.setCurrentDeviceInfo(new DeviceInfo());
         }
 
 
@@ -619,7 +615,7 @@ public class UserManager implements UserService {
         boolean notificationSent = false;
 
         if (prefs != null) {
-            if (prefs.isPushEnabled() && user.getDeviceInfo() != null && user.getDeviceInfo().getFcmToken() != null) {
+            if (prefs.isPushEnabled() && user.getCurrentDeviceInfo() != null && user.getCurrentDeviceInfo().getFcmToken() != null) {
                 fcmService.sendNotificationToToken(
                         user,
                         "Şifre Sıfırlama Kodu",
@@ -747,11 +743,10 @@ public class UserManager implements UserService {
     }
 
 
-
     @Override
     @Transactional
     public ResponseMessage changePassword(String username, ChangePasswordRequest request, HttpServletRequest httpServletRequest)
-            throws UserIsDeletedException, UserNotActiveException, UserNotFoundException,  InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException {
+            throws UserIsDeletedException, UserNotActiveException, UserNotFoundException, InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException {
 
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
 
@@ -865,57 +860,11 @@ public class UserManager implements UserService {
     @Override
     @Transactional
     public boolean updateFCMToken(String fcmToken, String username) throws UserNotFoundException {
-       SecurityUser user = securityUserRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
-        user.getDeviceInfo().setFcmToken(fcmToken);
+        SecurityUser user = securityUserRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        user.getCurrentDeviceInfo().setFcmToken(fcmToken);
         return true;
     }
 
-    @Override
-    @JsonView(Views.SuperAdmin.class)
-    public Page<CacheUserDTO> getAllUsers(String username, int page, int size)
-            throws UserNotActiveException, UnauthorizedAreaException {
-
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username)
-                .orElseThrow(UserNotActiveException::new);
-
-        if (securityUser.getRoles() == null ||
-                securityUser.getRoles().stream().noneMatch(role ->
-                        role.name().equals("ADMIN") || role.name().equals("SUPERADMIN"))) {
-            throw new UnauthorizedAreaException();
-        }
-
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-
-        Page<User> userPage = userRepository.findAll(pageable);
-
-        return userPage.map(userConverter::toCacheUserDTO);
-    }
-
-
-    @Override
-    @JsonView(Views.SuperAdmin.class)
-    public Page<CacheUserDTO> searchUser(String username, String query, int page, int size)
-            throws UserNotActiveException, UnauthorizedAreaException, UserNotFoundException {
-
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username)
-                .orElseThrow(UserNotActiveException::new);
-
-        if (securityUser.getRoles() == null ||
-                securityUser.getRoles().stream().noneMatch(role ->
-                        role.name().equals("ADMIN") || role.name().equals("SUPERADMIN"))) {
-            throw new UnauthorizedAreaException();
-        }
-
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-
-        Page<User> results = userRepository.searchByQuery(query.toLowerCase(), pageable);
-
-        if (results.isEmpty()) {
-            throw new UserNotFoundException();
-        }
-
-        return results.map(userConverter::toCacheUserDTO);
-    }
 
     @Override
     public List<FavoriteBusCardDTO> getFavoriteCards(String username) {
@@ -1225,18 +1174,18 @@ public class UserManager implements UserService {
             message.setSubject("Hesap Silme Talebiniz Gerçekleştirildi");
 
             String body = """
-                <html>
-                    <body style="font-family: Arial, sans-serif; color: #333;">
-                        <h2>Sayın %s,</h2>
-                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla silinmiştir.</p>
-                        <p>Silme sebebiniz: <em>%s</em></p>
-                        <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
-                        <br>
-                        <p>Saygılarımızla,</p>
-                        <p><strong>Destek Ekibi</strong></p>
-                    </body>
-                </html>
-            """.formatted(
+                        <html>
+                            <body style="font-family: Arial, sans-serif; color: #333;">
+                                <h2>Sayın %s,</h2>
+                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla silinmiştir.</p>
+                                <p>Silme sebebiniz: <em>%s</em></p>
+                                <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                                <br>
+                                <p>Saygılarımızla,</p>
+                                <p><strong>Destek Ekibi</strong></p>
+                            </body>
+                        </html>
+                    """.formatted(
                     user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
                     request.getReason() != null ? request.getReason() : "Belirtilmedi"
@@ -1311,17 +1260,17 @@ public class UserManager implements UserService {
             message.setSubject("Hesap Dondurma Bilgilendirmesi");
 
             String body = """
-                <html>
-                    <body style="font-family: Arial, sans-serif; color: #333;">
-                        <h2>Sayın %s,</h2>
-                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız geçici olarak dondurulmuştur.</p>
-                        <p>İşleminiz hakkında herhangi bir sorunuz varsa bizimle iletişime geçebilirsiniz.</p>
-                        <br>
-                        <p>Saygılarımızla,</p>
-                        <p><strong>Destek Ekibi</strong></p>
-                    </body>
-                </html>
-            """.formatted(
+                        <html>
+                            <body style="font-family: Arial, sans-serif; color: #333;">
+                                <h2>Sayın %s,</h2>
+                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız geçici olarak dondurulmuştur.</p>
+                                <p>İşleminiz hakkında herhangi bir sorunuz varsa bizimle iletişime geçebilirsiniz.</p>
+                                <br>
+                                <p>Saygılarımızla,</p>
+                                <p><strong>Destek Ekibi</strong></p>
+                            </body>
+                        </html>
+                    """.formatted(
                     user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
             );
@@ -1332,39 +1281,6 @@ public class UserManager implements UserService {
         }
 
         return new ResponseMessage("Hesabınız başarıyla geçici olarak donduruldu.", true);
-    }
-
-
-
-    @Override
-    @Transactional
-    public ResponseMessage terminateSessionByAdmin(Long userId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException {
-        SecurityUser user = securityUserRepository.findById(userId)
-                .orElseThrow(UserNotFoundException::new);
-
-        Optional<Token> tokenOpt = tokenRepository.findTokenBySecurityUser_IdAndTokenType(userId, TokenType.REFRESH);
-
-        if (tokenOpt.isEmpty()) {
-            throw new SessionNotFoundException();
-        }
-
-        Token token = tokenOpt.get();
-
-        if (token.getExpiresAt() != null && token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new SessionAlreadyExpiredException();
-        }
-
-        tokenRepository.deleteBySecurityUserId(userId);
-
-        // Audit log kaydı
-        AuditLog auditLog = new AuditLog();
-        auditLog.setUser(user);
-        auditLog.setAction(ActionType.ADMIN_TERMINATE_SESSION);
-        auditLog.setDescription("Admin tarafından oturum sonlandırıldı. User ID: " + userId);
-        auditLog.setTimestamp(LocalDateTime.now());
-        auditLogRepository.save(auditLog);
-
-        return new ResponseMessage("Kullanıcının oturumu başarıyla sonlandırıldı.", true);
     }
 
 
@@ -1430,17 +1346,17 @@ public class UserManager implements UserService {
             message.setSubject("Hesap Aktifleştirme Bilgilendirmesi");
 
             String body = """
-                <html>
-                    <body style="font-family: Arial, sans-serif; color: #333;">
-                        <h2>Sayın %s,</h2>
-                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla yeniden aktifleştirilmiştir.</p>
-                        <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
-                        <br>
-                        <p>Saygılarımızla,</p>
-                        <p><strong>Destek Ekibi</strong></p>
-                    </body>
-                </html>
-            """.formatted(
+                        <html>
+                            <body style="font-family: Arial, sans-serif; color: #333;">
+                                <h2>Sayın %s,</h2>
+                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla yeniden aktifleştirilmiştir.</p>
+                                <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                                <br>
+                                <p>Saygılarımızla,</p>
+                                <p><strong>Destek Ekibi</strong></p>
+                            </body>
+                        </html>
+                    """.formatted(
                     user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
             );
@@ -1452,6 +1368,198 @@ public class UserManager implements UserService {
 
         return new ResponseMessage("Hesabınız yeniden aktifleştirildi.", true);
     }
+
+    @Override
+    public PageDTO<CacheUserDTO> getAllUsers(Pageable pageable) {
+        Page<User> userPage = userRepository.findAll(pageable); // pageable içeriyor
+        return new PageDTO<>(userPage.map(userConverter::toCacheUserDTO));
+    }
+
+    @Override
+    public PageDTO<CacheUserDTO> searchUsers(String query, Pageable pageable) {
+        Specification<User> spec = (root, cq, cb) -> cb.conjunction();
+
+        if (query != null && !query.isBlank()) {
+            String likeQuery = "%" + query.toLowerCase() + "%";
+
+            spec = spec.and((root, cq, cb) -> {
+                var rolesJoin = root.joinSet("roles", JoinType.LEFT);
+
+                return cb.or(
+                        cb.like(cb.lower(root.get("name")), likeQuery),
+                        cb.like(cb.lower(root.get("surname")), likeQuery),
+                        cb.like(cb.lower(root.get("email")), likeQuery),
+                        cb.like(cb.lower(root.get("phone")), likeQuery),
+                        cb.like(cb.lower(root.get("userNumber")), likeQuery),
+                        cb.like(cb.lower(root.get("status").as(String.class)), likeQuery),
+                        cb.like(cb.lower(rolesJoin.get("name").as(String.class)), likeQuery),
+                        cb.like(cb.lower(root.get("emailVerified").as(String.class)), likeQuery),
+                        cb.like(cb.lower(root.get("phoneVerified").as(String.class)), likeQuery)
+                );
+            });
+        }
+
+        Page<User> userPage = userRepository.findAll(spec, pageable);
+        return new PageDTO<>(userPage.map(userConverter::toCacheUserDTO));
+    }
+
+    @Override
+    @Transactional
+    public ResponseMessage bulkUpdateUserStatus(List<Long> userIds, UserStatus newStatus, String username) throws AdminOrSuperAdminNotFoundException {
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
+
+        List<User> users = userRepository.findAllById(userIds);
+        for (User user : users) {
+            user.setStatus(newStatus);
+        }
+        return new ResponseMessage("kullanıcıların durumları değiştirildi.", true);
+    }
+
+    @Override
+    public ResponseMessage bulkDeleteUsers(List<Long> userIds, String username) throws AdminOrSuperAdminNotFoundException {
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
+
+        List<User> users = userRepository.findAllById(userIds);
+        for (User user : users) {
+            user.setStatus(UserStatus.DELETED);
+        }
+        return new ResponseMessage("Kullanıcılar silindi.", true);
+
+    }
+
+    @Override
+    public CacheUserDTO getUserById(Long userId, String username) throws UserNotFoundException, AdminOrSuperAdminNotFoundException {
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
+
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        return userConverter.toCacheUserDTO(user);
+    }
+
+    @Override
+    public Map<String, Object> getUserDeviceInfo(Long userId, String username) throws UserNotFoundException {
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        List<DeviceHistory>deviceHistories=user.getDeviceHistory();
+
+        return Map.of();
+    }
+
+    @Override
+    public ResponseMessage assignRolesToUser(Long userId, Set<Role> roles, String username) throws AdminOrSuperAdminNotFoundException {
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
+
+        return null;
+    }
+
+    @Override
+    public ResponseMessage removeRolesFromUser(Long userId, Set<Role> roles, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage bulkAssignRoles(List<Long> userIds, Set<Role> roles, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage resetUserPassword(Long userId, String newPassword, boolean forceChange, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage updateEmailVerificationStatus(Long userId, boolean verified, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage updatePhoneVerificationStatus(Long userId, boolean verified, String username) {
+        return null;
+    }
+
+    @Override
+    public List<Map<String, Object>> getUserActiveSessions(Long userId) {
+        return List.of();
+    }
+
+    @Override
+    public ResponseMessage terminateUserSession(Long userId, String sessionId, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage banIpAddress(String ipAddress, String reason, LocalDateTime expiresAt, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage suspendUser(String username, Long userId, SuspendUserRequest request) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage permanentlyDeleteUser(String username, Long userId, PermanentDeleteRequest request) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage unsuspendUser(String username, Long userId, UnsuspendUserRequest request) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage banUserDevice(Long userId, String deviceId, String reason, String username) {
+        return null;
+    }
+
+    @Override
+    public Page<Map<String, Object>> getSuspiciousActivities(String startDate, String endDate, String activityType, Pageable pageable) {
+        return null;
+    }
+
+    @Override
+    public Page<Map<String, Object>> getUserAuditLogs(Long userId, String startDate, String endDate, String action, Pageable pageable) {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> getUserStatistics() {
+        return Map.of();
+    }
+
+    @Override
+    public Page<LoginHistory> getUserLoginHistory(Long userId, String startDate, String endDate, Pageable pageable) {
+        return null;
+    }
+
+    @Override
+    public Page<SearchHistory> getUserSearchHistory(Long userId, String startDate, String endDate, Pageable pageable) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage sendNotificationToUser(Long userId, String title, String message, String type, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage sendBulkNotification(List<Long> userIds, String title, String message, String type, String username) {
+        return null;
+    }
+
+    @Override
+    public ResponseMessage exportUserDataToPdf(Long userId, String emailAddress, String language, String username) {
+        return null;
+    }
+
+    @Override
+    public void exportUsersToExcel(List<Long> userIds, UserStatus status, Role role, HttpServletResponse response, String username) {
+
+    }
+
+    @Override
+    public Map<String, Object> getUserBehaviorAnalysis(Long userId, int days) {
+        return Map.of();
+    }
+
 
     public String randomSixDigit() {
         Random random = new Random();

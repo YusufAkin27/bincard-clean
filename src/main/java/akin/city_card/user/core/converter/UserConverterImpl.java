@@ -1,7 +1,5 @@
 package akin.city_card.user.core.converter;
 
-import akin.city_card.geoAlert.core.response.GeoAlertDTO;
-import akin.city_card.geoAlert.model.GeoAlert;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.Role;
@@ -84,7 +82,7 @@ public class UserConverterImpl implements UserConverter {
                 .status(user.getStatus())
                 .deleted(user.isDeleted())
                 // Device Info
-                .fcmToken(user.getDeviceInfo() != null ? user.getDeviceInfo().getFcmToken() : null)
+                .fcmToken(user.getCurrentDeviceInfo() != null ? user.getCurrentDeviceInfo().getFcmToken() : null)
 
                 .phoneVerified(user.isPhoneVerified())
                 .emailVerified(user.isEmailVerified())
@@ -146,7 +144,7 @@ public class UserConverterImpl implements UserConverter {
                 .autoTopUpEnabled(false)
                 .phoneVerified(false)
                 .profileInfo(profileInfo)
-                .deviceInfo(deviceInfo)
+                .currentDeviceInfo(deviceInfo)
                 .build();
     }
 

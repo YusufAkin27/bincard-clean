@@ -3,7 +3,6 @@ package akin.city_card.admin.service.concretes;
 import akin.city_card.admin.core.request.CreateAdminRequest;
 import akin.city_card.admin.core.request.UpdateDeviceInfoRequest;
 import akin.city_card.admin.core.request.UpdateLocationRequest;
-import akin.city_card.admin.core.response.AuditLogDTO;
 import akin.city_card.admin.core.response.LoginHistoryDTO;
 import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.admin.model.*;
@@ -36,7 +35,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -74,7 +72,7 @@ public class AdminManager implements AdminService {
         Admin admin = Admin.builder()
                 .roles(Collections.singleton(Role.ADMIN))
                 .password(passwordEncoder.encode(adminRequest.getPassword()))
-                .deviceInfo(deviceInfo)
+                .currentDeviceInfo(deviceInfo)
                 .profileInfo(profileInfo)
                 .userNumber(normalizedPhone)
                 .superAdminApproved(false)   // Süper admin onayı bekleniyor
@@ -216,7 +214,7 @@ public class AdminManager implements AdminService {
     public ResponseMessage updateDeviceInfo(UpdateDeviceInfoRequest request, String username) throws AdminNotFoundException {
         Admin admin = findByUserNumber(username);
 
-        DeviceInfo deviceInfo = admin.getDeviceInfo();
+        DeviceInfo deviceInfo = admin.getCurrentDeviceInfo();
         if (deviceInfo == null) {
             deviceInfo = new DeviceInfo();
         }
@@ -238,7 +236,7 @@ public class AdminManager implements AdminService {
             return new ResponseMessage("Güncellenecek cihaz bilgisi bulunamadı.", false);
         }
 
-        admin.setDeviceInfo(deviceInfo);
+        admin.setCurrentDeviceInfo(deviceInfo);
         adminRepository.save(admin);
 
         return new ResponseMessage("Cihaz bilgileri başarıyla güncellendi.", true);

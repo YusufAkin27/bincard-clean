@@ -56,7 +56,7 @@ public class AdminDataInitializer implements ApplicationRunner {
                         .email("admin" + i + "@citycard.com")
                         .profilePicture("https://example.com/admin" + i + ".jpg")
                         .build())
-                .deviceInfo(DeviceInfo.builder()
+                .currentDeviceInfo(DeviceInfo.builder()
                         .ipAddress("10.0.0." + i)
                         .fcmToken("admintoken-" + i)
                         .build())

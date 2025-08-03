@@ -2,6 +2,7 @@ package akin.city_card.security.entity;
 
 import akin.city_card.admin.model.AuditLog;
 import akin.city_card.location.model.Location;
+import akin.city_card.user.model.DeviceHistory;
 import akin.city_card.user.model.LoginHistory;
 import akin.city_card.user.model.UserStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -17,7 +18,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,7 +51,13 @@ public class SecurityUser implements UserDetails {
     private Set<Role> roles;
 
     @Embedded
-    private DeviceInfo deviceInfo;
+    private DeviceInfo currentDeviceInfo;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("lastSeenAt DESC")
+    @JsonIgnore
+    private List<DeviceHistory> deviceHistory = new ArrayList<>();
+
 
 
     @Embedded

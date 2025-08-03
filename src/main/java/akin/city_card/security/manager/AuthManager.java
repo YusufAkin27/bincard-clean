@@ -247,7 +247,7 @@ public class AuthManager implements AuthService {
     public ResponseMessage resendVerifyCode(String telephone) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
         telephone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(telephone);
         SecurityUser user = securityUserRepository.findByUserNumber(telephone).orElseThrow(UserNotFoundException::new);
-        sendLoginVerificationCode(telephone, user.getDeviceInfo().getIpAddress(), null);
+        sendLoginVerificationCode(telephone, user.getCurrentDeviceInfo().getIpAddress(), null);
         return new ResponseMessage("yeni doğrulama kodu gönderildi", true);
     }
 
@@ -364,7 +364,7 @@ public class AuthManager implements AuthService {
                 .ipAddress(metadata.getIpAddress())
                 .fcmToken(metadata.getFcmToken())
                 .build();
-        user.setDeviceInfo(updatedDeviceInfo);
+        user.setCurrentDeviceInfo(updatedDeviceInfo);
 
         user.setLastLocationUpdatedAt(LocalDateTime.now());
 

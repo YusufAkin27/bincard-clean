@@ -5,23 +5,31 @@ import akin.city_card.admin.core.response.AuditLogDTO;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
-import akin.city_card.news.exceptions.UnauthorizedAreaException;
+import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.security.entity.Role;
 import akin.city_card.security.exception.*;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
+import akin.city_card.user.model.LoginHistory;
+import akin.city_card.user.model.SearchHistory;
+import akin.city_card.user.model.UserStatus;
 import akin.city_card.verification.exceptions.*;
 import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public interface UserService {
 
@@ -52,13 +60,8 @@ public interface UserService {
     ResponseMessage verifyPhoneForPasswordReset(VerificationCodeRequest verificationCodeRequest) throws InvalidOrUsedVerificationCodeException, VerificationCodeExpiredException;
 
     boolean updateFCMToken(String fcmToken, String username) throws UserNotFoundException;
-    ResponseMessage terminateSessionByAdmin(Long userId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException;
 
-    Page<CacheUserDTO> getAllUsers(String username, int page, int size)
-            throws UserNotActiveException, UnauthorizedAreaException;
 
-    Page<CacheUserDTO> searchUser(String username, String query, int page, int size)
-            throws UserNotFoundException, UnauthorizedAreaException, UserNotActiveException;
 
     List<FavoriteBusCardDTO> getFavoriteCards(String username) throws UserNotFoundException;
 
@@ -92,4 +95,65 @@ public interface UserService {
     ResponseMessage unfreezeAccount(String username, UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException, AccountNotFrozenException;
 
 
+    PageDTO<CacheUserDTO> getAllUsers(Pageable pageable);
+
+    PageDTO<CacheUserDTO> searchUsers(String name, Pageable pageable);
+
+    ResponseMessage bulkUpdateUserStatus(List<Long> userIds, UserStatus newStatus, String username) throws AdminOrSuperAdminNotFoundException;
+
+    ResponseMessage bulkDeleteUsers(List<Long> userIds, String username) throws AdminOrSuperAdminNotFoundException;
+
+    CacheUserDTO getUserById(Long userId, String username) throws UserNotFoundException, AdminOrSuperAdminNotFoundException;
+
+    Map<String, Object> getUserDeviceInfo(Long userId, String username) throws UserNotFoundException;
+
+    ResponseMessage assignRolesToUser(Long userId, Set<Role> roles, String username) throws AdminOrSuperAdminNotFoundException;
+
+    ResponseMessage removeRolesFromUser(Long userId, Set<Role> roles, String username);
+
+    ResponseMessage bulkAssignRoles(List<Long> userIds, Set<Role> roles, String username);
+
+    ResponseMessage resetUserPassword(Long userId, String newPassword, boolean forceChange, String username);
+
+
+    ResponseMessage updateEmailVerificationStatus(Long userId, boolean verified, String username);
+
+    ResponseMessage updatePhoneVerificationStatus(Long userId, boolean verified, String username);
+
+    List<Map<String, Object>> getUserActiveSessions(Long userId);
+
+    ResponseMessage terminateUserSession(Long userId, String sessionId, String username);
+
+
+    ResponseMessage banIpAddress(String ipAddress, String reason, LocalDateTime expiresAt, String username);
+
+    ResponseMessage suspendUser(String username, Long userId, SuspendUserRequest request);
+
+    ResponseMessage permanentlyDeleteUser(String username, Long userId, PermanentDeleteRequest request);
+
+    ResponseMessage unsuspendUser(String username, Long userId, UnsuspendUserRequest request);
+
+    ResponseMessage banUserDevice(Long userId, String deviceId, String reason, String username);
+
+    Page<Map<String, Object>> getSuspiciousActivities(String startDate, String endDate, String activityType, Pageable pageable);
+
+    Page<Map<String, Object>> getUserAuditLogs(Long userId, String startDate, String endDate, String action, Pageable pageable);
+
+    Map<String, Object> getUserStatistics();
+
+
+    Page<LoginHistory> getUserLoginHistory(Long userId, String startDate, String endDate, Pageable pageable);
+
+    Page<SearchHistory> getUserSearchHistory(Long userId, String startDate, String endDate, Pageable pageable);
+
+    ResponseMessage sendNotificationToUser(Long userId, String title, String message, String type, String username);
+
+    ResponseMessage sendBulkNotification(List<Long> userIds, String title, String message, String type, String username);
+
+    ResponseMessage exportUserDataToPdf(Long userId, String emailAddress, String language, String username);
+
+    void exportUsersToExcel(List<Long> userIds, UserStatus status, Role role, HttpServletResponse response, String username);
+
+
+    Map<String, Object> getUserBehaviorAnalysis(Long userId, int days);
 }
