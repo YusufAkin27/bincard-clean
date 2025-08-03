@@ -176,7 +176,6 @@ public class UserManager implements UserService {
                 .ipAddress(ipAddress)
                 .userAgent(userAgent)
                 .deviceType(deviceType)
-                .referer(referer)
                 .city(geoData != null ? geoData.getCity() : null)
                 .region(geoData != null ? geoData.getRegion() : null)
                 .country(geoData != null ? geoData.getCountry_name() : null)
@@ -240,6 +239,9 @@ public class UserManager implements UserService {
     ) {
         DeviceInfo deviceInfo = buildDeviceInfoFromRequest(httpRequest, geoIpService);
 
+        String referer = httpRequest.getHeader("Referer");
+        String fullMetadata = (metadata == null ? "" : metadata + ", ") + (referer != null ? "Referer: " + referer : "");
+
         user.setDeviceInfo(deviceInfo);
 
         createAuditLog(
@@ -250,8 +252,9 @@ public class UserManager implements UserService {
                 user.getId(),
                 user.getRoles().toString(),
                 amount,
-                metadata,
-                deviceInfo.getReferer()
+                fullMetadata,
+                referer
+
         );
     }
 

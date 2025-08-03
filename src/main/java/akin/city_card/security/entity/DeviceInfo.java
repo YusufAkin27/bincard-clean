@@ -17,7 +17,6 @@ public class DeviceInfo {
     private String ipAddress;
     private String userAgent;
     private String deviceType;       // Mobile, Desktop, Tablet vs.
-    private String referer;          // Referer URL
     private String city;             // GeoIP şehir
     private String region;           // GeoIP bölge
     private String country;          // GeoIP ülke
