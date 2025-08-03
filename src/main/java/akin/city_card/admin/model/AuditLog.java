@@ -30,7 +30,6 @@ public class AuditLog {
     @Enumerated(EnumType.STRING)
     private ActionType action;
 
-    // Açıklama: “Karta 50₺ yüklendi”, “Profil güncellendi” vs.
     @Column(length = 1000)
     private String description;
 
@@ -40,15 +39,15 @@ public class AuditLog {
     @Embedded
     private DeviceInfo deviceInfo;
 
-    // 🧾 Hedef entite bilgisi
-    private UUID targetEntityId;
+    private Long targetEntityId;
 
-    private String targetEntityType; // örn: "BUS_CARD", "WALLET", "USER"
+    private String targetEntityType;
 
-    // 💸 Eğer işlem parasal ya da sayısal bir değer içeriyorsa
     private Double amount;
 
-    // 🧠 Ek açıklama veya JSON/CSV vs. gibi string metadata
     @Column(length = 2000)
     private String metadata;
+
+    @Column(length = 1000)
+    private String referer;
 }

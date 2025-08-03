@@ -6,16 +6,21 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.io.Serializable;
-
 @Embeddable
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DeviceInfo implements Serializable {
+public class DeviceInfo {
     private String fcmToken;
     private String deviceUuid;
     private String ipAddress;
     private String userAgent;
+    private String deviceType;       // Mobile, Desktop, Tablet vs.
+    private String referer;          // Referer URL
+    private String city;             // GeoIP şehir
+    private String region;           // GeoIP bölge
+    private String country;          // GeoIP ülke
+    private String timezone;         // GeoIP timezone
+    private String org;              // GeoIP org bilgisi
 }

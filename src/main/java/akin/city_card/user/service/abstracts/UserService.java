@@ -2,27 +2,18 @@ package akin.city_card.user.service.abstracts;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
-import akin.city_card.bus.exceptions.RouteNotFoundException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
-import akin.city_card.geoAlert.core.request.GeoAlertRequest;
-import akin.city_card.geoAlert.core.response.GeoAlertDTO;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
-import akin.city_card.route.exceptions.RouteNotFoundStationException;
-import akin.city_card.security.exception.InvalidVerificationCodeException;
-import akin.city_card.security.exception.UserNotActiveException;
-import akin.city_card.security.exception.UserNotFoundException;
-import akin.city_card.security.exception.VerificationCodeStillValidException;
-import akin.city_card.station.exceptions.StationNotFoundException;
+import akin.city_card.security.exception.*;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.*;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.verification.exceptions.*;
-import akin.city_card.wallet.core.response.WalletDTO;
-import akin.city_card.wallet.exceptions.WalletIsEmptyException;
+import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -34,26 +25,26 @@ import java.util.List;
 
 public interface UserService {
 
-    ResponseMessage create(CreateUserRequest createUserRequest) throws PhoneNumberRequiredException, PhoneNumberAlreadyExistsException, InvalidPhoneNumberFormatException, VerificationCodeStillValidException;
+    ResponseMessage create(CreateUserRequest createUserRequest, HttpServletRequest request) throws PhoneNumberRequiredException, PhoneNumberAlreadyExistsException, InvalidPhoneNumberFormatException, VerificationCodeStillValidException;
 
-    CacheUserDTO getProfile(String username) throws UserNotFoundException;
+    CacheUserDTO getProfile(String username, HttpServletRequest httpServletRequest) throws UserNotFoundException;
 
-    ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException;
-
-
-
-    List<ResponseMessage> createAll(@Valid List<CreateUserRequest> createUserRequests) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException;
-
-    ResponseMessage updateProfilePhoto(String username, MultipartFile file) throws PhotoSizeLargerException, IOException, UserNotFoundException;
-
-    ResponseMessage verifyPhone( VerificationCodeRequest request) throws UserNotFoundException;
+    ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest, HttpServletRequest httpServletRequest) throws UserNotFoundException, EmailAlreadyExistsException;
 
 
-    ResponseMessage sendPasswordResetCode(String phone) throws UserNotFoundException;
 
-    ResponseMessage resetPassword(PasswordResetRequest request) throws PasswordResetTokenNotFoundException, PasswordResetTokenExpiredException, PasswordResetTokenIsUsedException, PasswordTooShortException, SamePasswordException;
+    List<ResponseMessage> createAll(String username, @Valid List<CreateUserRequest> createUserRequests, HttpServletRequest httpServletRequest) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException, AdminOrSuperAdminNotFoundException;
 
-    ResponseMessage changePassword(String username, ChangePasswordRequest request) throws UserIsDeletedException, UserNotActiveException, UserNotFoundException, PasswordsDoNotMatchException, InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException;
+    ResponseMessage updateProfilePhoto(String username, MultipartFile file, HttpServletRequest httpServletRequest) throws PhotoSizeLargerException, IOException, UserNotFoundException;
+
+    ResponseMessage verifyPhone(VerificationCodeRequest request, HttpServletRequest httpServletRequest) throws UserNotFoundException, VerificationCodeNotFoundException, UsedVerificationCodeException, CancelledVerificationCodeException, VerificationCodeExpiredException;
+
+
+    ResponseMessage sendPasswordResetCode(String phone, HttpServletRequest httpServletRequest) throws UserNotFoundException;
+
+    ResponseMessage resetPassword(PasswordResetRequest request, HttpServletRequest httpServletRequest) throws PasswordResetTokenNotFoundException, PasswordResetTokenExpiredException, PasswordResetTokenIsUsedException, PasswordTooShortException, SamePasswordException;
+
+    ResponseMessage changePassword(String username, ChangePasswordRequest request, HttpServletRequest httpServletRequest) throws UserIsDeletedException, UserNotActiveException, UserNotFoundException, PasswordsDoNotMatchException, InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException;
 
 
     ResponseMessage resendPhoneVerificationCode(ResendPhoneVerificationRequest request) throws UserNotFoundException;
@@ -92,7 +83,7 @@ public interface UserService {
 
     void updateLocation(String username, @Valid UpdateLocationRequest updateLocationRequest) throws UserNotFoundException;
 
-    ResponseMessage verifyEmail(String token, String email) throws VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeStillValidException, UserNotFoundException, VerificationCodeAlreadyUsedException, VerificationCodeCancelledException, VerificationCodeTypeMismatchException, EmailMismatchException, InvalidVerificationCodeException;
+    ResponseMessage verifyEmail(String token, String email, HttpServletRequest request) throws VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeStillValidException, UserNotFoundException, VerificationCodeAlreadyUsedException, VerificationCodeCancelledException, VerificationCodeTypeMismatchException, EmailMismatchException, InvalidVerificationCodeException;
 
     ResponseMessage deleteAccount(String username, DeleteAccountRequest request, HttpServletRequest httpRequest) throws ApproveIsConfirmDeletionException, UserNotFoundException, PasswordsDoNotMatchException, WalletBalanceNotZeroException;
 

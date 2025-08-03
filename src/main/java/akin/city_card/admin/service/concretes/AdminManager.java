@@ -118,7 +118,7 @@ public class AdminManager implements AdminService {
                                ActionType action,
                                String description,
                                DeviceInfo deviceInfo,
-                               UUID targetEntityId,
+                               Long targetEntityId,
                                String targetEntityType,
                                Double amount,
                                String metadata) {

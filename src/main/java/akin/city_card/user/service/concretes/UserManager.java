@@ -14,36 +14,39 @@ import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.cloudinary.MediaUploadService;
-
+import akin.city_card.geoIpService.GeoIpService;
+import akin.city_card.geoIpService.GeoLocationData;
 import akin.city_card.location.model.Location;
 import akin.city_card.mail.EmailMessage;
 import akin.city_card.mail.MailService;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
+import akin.city_card.notification.model.Notification;
 import akin.city_card.notification.model.NotificationPreferences;
 import akin.city_card.notification.model.NotificationType;
+import akin.city_card.notification.repository.NotificationRepository;
 import akin.city_card.notification.service.FCMService;
-import akin.city_card.redis.CachedUserLookupService;
 import akin.city_card.response.ResponseMessage;
-import akin.city_card.route.repository.RouteRepository;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.entity.Token;
 import akin.city_card.security.entity.enums.TokenType;
-import akin.city_card.security.exception.InvalidVerificationCodeException;
-import akin.city_card.security.exception.UserNotActiveException;
-import akin.city_card.security.exception.UserNotFoundException;
-import akin.city_card.security.exception.VerificationCodeStillValidException;
+import akin.city_card.security.exception.*;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.security.repository.TokenRepository;
+import akin.city_card.sms.SmsRequest;
 import akin.city_card.sms.SmsService;
-import akin.city_card.station.repository.StationRepository;
 import akin.city_card.user.core.converter.UserConverter;
 import akin.city_card.user.core.request.*;
-import akin.city_card.user.core.response.*;
+import akin.city_card.user.core.response.CacheUserDTO;
+import akin.city_card.user.core.response.SearchHistoryDTO;
+import akin.city_card.user.core.response.Views;
 import akin.city_card.user.exceptions.*;
-import akin.city_card.user.model.*;
+import akin.city_card.user.model.PasswordResetToken;
+import akin.city_card.user.model.SearchHistory;
+import akin.city_card.user.model.User;
+import akin.city_card.user.model.UserStatus;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
@@ -52,8 +55,7 @@ import akin.city_card.verification.model.VerificationChannel;
 import akin.city_card.verification.model.VerificationCode;
 import akin.city_card.verification.model.VerificationPurpose;
 import akin.city_card.verification.repository.VerificationCodeRepository;
-import akin.city_card.wallet.core.converter.WalletConverter;
-import akin.city_card.wallet.repository.WalletRepository;
+import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
@@ -88,20 +90,17 @@ public class UserManager implements UserService {
     private final SecurityUserRepository securityUserRepository;
     private final BusCardConverter busCardConverter;
     private final BusCardRepository busCardRepository;
-    private final WalletRepository walletRepository;
-    private final WalletConverter walletConverter;
-    private AuditLogRepository auditLogRepository;
-    private final CachedUserLookupService cachedUserLookupService;
-    private final RouteRepository routeRepository;
-    private final StationRepository stationRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final NotificationRepository notificationRepository;
     private final AuditLogConverter auditLogConverter;
     private final FCMService fcmService;
+    private final GeoIpService geoIpService;
     private final TokenRepository tokenRepository;
 
 
     @Override
     @Transactional
-    public ResponseMessage create(CreateUserRequest request) throws VerificationCodeStillValidException {
+    public ResponseMessage create(CreateUserRequest request, HttpServletRequest httpServletRequest) throws VerificationCodeStillValidException {
         String normalizedPhone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(request.getTelephone());
         request.setTelephone(normalizedPhone);
 
@@ -129,15 +128,80 @@ public class UserManager implements UserService {
 
         User user = userConverter.convertUserToCreateUser(request);
         user.setStatus(UserStatus.UNVERIFIED);
+
         userRepository.save(user);
 
         sendVerificationCode(user, request.getIpAddress(), request.getUserAgent(), VerificationPurpose.REGISTER);
 
+        createNotification(
+                user,
+                "Kayıt Başarılı",
+                "Kayıt işleminiz başarıyla tamamlandı. SMS ile gelen doğrulama kodunu kullanarak hesabınızı aktifleştirebilirsiniz.",
+                NotificationType.INFO,
+                null
+        );
+
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpServletRequest,
+                geoIpService,
+                ActionType.USER_REGISTER,
+                "Yeni kullanıcı kaydı yapıldı: " + user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
+                null,
+                "Telefon: " + normalizedPhone
+        );
+
+
+
         return new ResponseMessage("Kullanıcı başarıyla oluşturuldu. Doğrulama kodu SMS olarak gönderildi.", true);
     }
 
+    public DeviceInfo buildDeviceInfoFromRequest(HttpServletRequest httpRequest, GeoIpService geoIpService) {
+        String ipAddress = extractClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        String referer = httpRequest.getHeader("Referer");
 
-    private void sendVerificationCode(SecurityUser user, String ipAddress, String userAgent, VerificationPurpose purpose) {
+        String deviceType = "Unknown";
+        if (userAgent != null) {
+            String uaLower = userAgent.toLowerCase();
+            if (uaLower.contains("mobile")) deviceType = "Mobile";
+            else if (uaLower.contains("tablet")) deviceType = "Tablet";
+            else deviceType = "Desktop";
+        }
+
+        GeoLocationData geoData = geoIpService.getGeoData(ipAddress);
+
+        return DeviceInfo.builder()
+                .deviceUuid(UUID.randomUUID().toString())
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .deviceType(deviceType)
+                .referer(referer)
+                .city(geoData != null ? geoData.getCity() : null)
+                .region(geoData != null ? geoData.getRegion() : null)
+                .country(geoData != null ? geoData.getCountry_name() : null)
+                .timezone(geoData != null ? geoData.getTimezone() : null)
+                .org(geoData != null ? geoData.getOrg() : null)
+                .build();
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp.trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
+
+    @Transactional
+    public void sendVerificationCode(SecurityUser user, String ipAddress, String userAgent, VerificationPurpose purpose) {
         String code = randomSixDigit();
         LocalDateTime now = LocalDateTime.now();
 
@@ -158,43 +222,73 @@ public class UserManager implements UserService {
 /*
          SmsRequest smsRequest = new SmsRequest();
          smsRequest.setTo(user.getUserNumber());
-         smsRequest.setMessage("City Card - Doğrulama kodunuz: " + code + ". Kod 3 dakika geçerlidir.");
+         smsRequest.setMessage("City Card Sistemine Hoş Geldiniz. Doğrulama kodunuz: " + code + ". Kod 3 dakika boyunca geçerlidir. Güvenliğiniz için bu kodu kimseyle paylaşmayınız.");
          smsService.sendSms(smsRequest);
 
 
  */
-        System.out.println("📩 Yeni kayıt doğrulama kodu: " + code);
+        System.out.println("Yeni kayıt doğrulama kodu: " + code);
+    }
+    public void updateDeviceInfoAndCreateAuditLog(
+            SecurityUser user,
+            HttpServletRequest httpRequest,
+            GeoIpService geoIpService,
+            ActionType action,
+            String description,
+            Double amount,
+            String metadata
+    ) {
+        DeviceInfo deviceInfo = buildDeviceInfoFromRequest(httpRequest, geoIpService);
+
+        user.setDeviceInfo(deviceInfo);
+
+        createAuditLog(
+                user,
+                action,
+                description,
+                deviceInfo,
+                user.getId(),
+                user.getRoles().toString(),
+                amount,
+                metadata,
+                deviceInfo.getReferer()
+        );
     }
 
 
     @Override
     @Transactional
-    public ResponseMessage verifyPhone(VerificationCodeRequest request) throws UserNotFoundException {
+    public ResponseMessage verifyPhone(VerificationCodeRequest request, HttpServletRequest httpServletRequest)
+            throws UserNotFoundException, VerificationCodeNotFoundException,
+            UsedVerificationCodeException, CancelledVerificationCodeException,
+            VerificationCodeExpiredException {
+
         VerificationCode verificationCode = verificationCodeRepository
                 .findTopByCodeOrderByCreatedAtDesc(request.getCode());
 
         if (verificationCode == null) {
-            return new ResponseMessage("Böyle bir doğrulama kodu bulunamadı.", false);
+            throw new VerificationCodeNotFoundException();
         }
 
         if (verificationCode.isUsed()) {
-            return new ResponseMessage("Bu doğrulama kodu zaten kullanılmış.", false);
+            throw new UsedVerificationCodeException();
         }
 
         if (verificationCode.isCancelled()) {
-            return new ResponseMessage("Bu doğrulama kodu iptal edilmiş.", false);
+            throw new CancelledVerificationCodeException();
         }
 
         if (verificationCode.getExpiresAt().isBefore(LocalDateTime.now())) {
             verificationCode.setCancelled(true);
             verificationCodeRepository.save(verificationCode);
-            return new ResponseMessage("Doğrulama kodunun süresi dolmuş.", false);
+            throw new VerificationCodeExpiredException();
         }
 
         SecurityUser securityUser = verificationCode.getUser();
         if (!(securityUser instanceof User user)) {
             throw new UserNotFoundException();
         }
+
 
         user.setPhoneVerified(true);
         user.setStatus(UserStatus.ACTIVE);
@@ -205,6 +299,16 @@ public class UserManager implements UserService {
         verificationCodeRepository.save(verificationCode);
 
         verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.REGISTER);
+
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpServletRequest,
+                geoIpService,
+                ActionType.USER_PHONE_VERIFIED,
+                "Kullanıcı telefon doğrulamasını tamamladı.",
+                null,
+                "IP: " + extractClientIp(httpServletRequest)
+        );
 
         fcmService.sendNotificationToToken(
                 user,
@@ -217,16 +321,75 @@ public class UserManager implements UserService {
         return new ResponseMessage("Telefon numarası başarıyla doğrulandı. Hesabınız aktif hale getirildi.", true);
     }
 
-    @Override
-    @JsonView(Views.User.class)
-    public CacheUserDTO getProfile(String username) throws UserNotFoundException {
-        return userConverter.toCacheUserDTO(userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new));
+    public void createAuditLog(SecurityUser user,
+                               ActionType action,
+                               String description,
+                               DeviceInfo deviceInfo,
+                               Long targetEntityId,
+                               String targetEntityType,
+                               Double amount,
+                               String metadata,
+                               String referer) {
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(user);
+        auditLog.setAction(action);
+        auditLog.setDescription(description);
+        auditLog.setTimestamp(LocalDateTime.now());
+        auditLog.setDeviceInfo(deviceInfo);
+        auditLog.setTargetEntityId(targetEntityId);
+        auditLog.setTargetEntityType(targetEntityType);
+        auditLog.setAmount(amount);
+        auditLog.setMetadata(metadata);
+        auditLog.setReferer(referer);
+
+        auditLogRepository.save(auditLog);
+    }
+
+
+    public void createNotification(User user,
+                                   String title,
+                                   String message,
+                                   NotificationType type,
+                                   String targetUrl) {
+
+        Notification notification = Notification.builder()
+                .user(user)
+                .title(title)
+                .message(message)
+                .type(type)
+                .targetUrl(targetUrl)
+                .build();
+
+        notificationRepository.save(notification);
     }
 
 
     @Override
+    public CacheUserDTO getProfile(String username, HttpServletRequest httpServletRequest) throws UserNotFoundException {
+        User user = userRepository.findByUserNumber(username)
+                .orElseThrow(UserNotFoundException::new);
+
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpServletRequest,
+                geoIpService,
+                ActionType.USER_PROFILE_VIEWED,
+                "Kullanıcı profil görüntülendi.",
+                null,
+                null
+        );
+
+        userRepository.save(user);
+
+        return userConverter.toCacheUserDTO(user);
+    }
+
+
+
+    @Override
     @Transactional
-    public ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException {
+    public ResponseMessage updateProfile(String username, UpdateProfileRequest updateProfileRequest, HttpServletRequest httpServletRequest) throws UserNotFoundException, EmailAlreadyExistsException {
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
 
         boolean isUpdated = false;
@@ -261,10 +424,8 @@ public class UserManager implements UserService {
                 user.getProfileInfo().setEmail(newEmail);
                 user.setEmailVerified(false);
 
-                // Mevcut aktif email doğrulama kodlarını iptal et
                 verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.EMAIL_VERIFICATION);
 
-                // Yeni doğrulama kodu oluştur
                 String token = UUID.randomUUID().toString();
                 VerificationCode verificationCode = new VerificationCode();
                 verificationCode.setCode(token);
@@ -277,11 +438,9 @@ public class UserManager implements UserService {
                 verificationCode.setChannel(VerificationChannel.EMAIL);
                 verificationCodeRepository.save(verificationCode);
 
-                // Doğrulama linki
                 String verificationLink = "http://localhost:8080/v1/api/user/email-verify/" + token
                         + "?email=" + URLEncoder.encode(newEmail, StandardCharsets.UTF_8);
                 System.out.println(verificationLink);
-                // HTML içerikli e-posta
                 String fullName = (user.getProfileInfo().getName() != null ? user.getProfileInfo().getName() : "") + " "
                         + (user.getProfileInfo().getSurname() != null ? user.getProfileInfo().getSurname() : "");
                 String htmlContent = """
@@ -302,7 +461,6 @@ public class UserManager implements UserService {
                         </html>
                         """.formatted(fullName.trim(), verificationLink);
 
-                // E-posta gönder
                 EmailMessage emailMessage = new EmailMessage();
                 emailMessage.setToEmail(newEmail);
                 emailMessage.setSubject("E-Posta Doğrulama");
@@ -320,9 +478,12 @@ public class UserManager implements UserService {
 
 
         if (isUpdated) {
+            if (user.getDeviceInfo() == null) {
+                user.setDeviceInfo(new DeviceInfo());
+            }
+
             userRepository.save(user);
 
-            // Bildirimi kaydet ve anlık gönder
             fcmService.sendNotificationToToken(
                     user,
                     "Profil Güncelleme",
@@ -330,6 +491,17 @@ public class UserManager implements UserService {
                     NotificationType.SUCCESS,
                     null
             );
+            updateDeviceInfoAndCreateAuditLog(
+                    user,
+                    httpServletRequest,
+                    geoIpService,
+                    ActionType.USER_PROFILE_UPDATED,
+                    "Kullanıcı profil bilgilerini güncelledi.",
+                    null,
+                    null
+            );
+
+
             return new ResponseMessage("Profil başarıyla güncellendi.", true);
         }
 
@@ -337,22 +509,39 @@ public class UserManager implements UserService {
     }
 
 
-
-
     @Override
-    public List<ResponseMessage> createAll(List<CreateUserRequest> createUserRequests) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException {
+    @Transactional
+    public List<ResponseMessage> createAll(String username, List<CreateUserRequest> createUserRequests, HttpServletRequest httpServletRequest) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException, AdminOrSuperAdminNotFoundException {
+        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
+
         List<ResponseMessage> responseMessages = new ArrayList<>();
         for (CreateUserRequest createUserRequest : createUserRequests) {
-            responseMessages.add(create(createUserRequest));
+            responseMessages.add(create(createUserRequest, httpServletRequest));
         }
 
-        return responseMessages;
+        if (securityUser.getDeviceInfo() == null) {
+            securityUser.setDeviceInfo(new DeviceInfo());
+        }
 
+
+        updateDeviceInfoAndCreateAuditLog(
+                securityUser,
+                httpServletRequest,
+                geoIpService,
+                ActionType.BULK_USER_CREATED,
+                createUserRequests.size() + " adet kullanıcı topluca eklendi.",
+                null,
+                null
+        );
+
+
+        return responseMessages;
     }
+
 
     @Override
     @Transactional
-    public ResponseMessage updateProfilePhoto(String username, MultipartFile file)
+    public ResponseMessage updateProfilePhoto(String username, MultipartFile file, HttpServletRequest httpServletRequest)
             throws PhotoSizeLargerException, IOException, UserNotFoundException {
 
         User user = userRepository.findByUserNumber(username)
@@ -364,6 +553,26 @@ public class UserManager implements UserService {
 
             userRepository.save(user);
 
+            updateDeviceInfoAndCreateAuditLog(
+                    user,
+                    httpServletRequest,
+                    geoIpService,
+                    ActionType.USER_PROFILE_PHOTO_UPDATED,
+                    "Kullanıcı profil fotoğrafını güncelledi.",
+                    null,
+                    null
+            );
+
+
+            Notification notification = Notification.builder()
+                    .user(user)
+                    .title("Profil Fotoğrafı Güncellendi")
+                    .message("Profil fotoğrafınız başarıyla güncellendi.")
+                    .type(NotificationType.SUCCESS)
+                    .targetUrl(null)
+                    .build();
+            notificationRepository.save(notification);
+
             return new ResponseMessage("Profil fotoğrafı başarıyla güncellendi.", true);
 
         } catch (OnlyPhotosAndVideosException | VideoSizeLargerException | FileFormatCouldNotException e) {
@@ -373,44 +582,108 @@ public class UserManager implements UserService {
 
 
     @Override
-    public ResponseMessage sendPasswordResetCode(String phone) throws UserNotFoundException {
-        Optional<SecurityUser> user = securityUserRepository.findByUserNumber(PhoneNumberFormatter.normalizeTurkishPhoneNumber(phone));
-        if (user.isEmpty()) {
-            throw new UserNotFoundException();
-        }
+    @Transactional
+    public ResponseMessage sendPasswordResetCode(String phone, HttpServletRequest httpServletRequest) throws UserNotFoundException {
+        String normalizedPhone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(phone);
+        User user = userRepository.findByUserNumber(normalizedPhone)
+                .orElseThrow(UserNotFoundException::new);
+
         String code = randomSixDigit();
         System.out.println("Doğrulama kodu: " + code);
 
         VerificationCode verificationCode = VerificationCode.builder()
-                .user(user.get())
+                .user(user)
                 .code(code)
-                .channel(VerificationChannel.SMS)
+                .channel(VerificationChannel.SMS) // default channel, gerçek gönderimde değişebilir
                 .purpose(VerificationPurpose.RESET_PASSWORD)
                 .expiresAt(LocalDateTime.now().plusMinutes(3))
                 .build();
 
-
         verificationCodeRepository.save(verificationCode);
 
-/*
-        SmsRequest smsRequest = new SmsRequest();
-        smsRequest.setTo(phone);
-        smsRequest.setMessage("City Card - Doğrulama kodunuz: " + code +
-                ". Kod 3 dakika boyunca geçerlidir.");
-        smsService.sendSms(smsRequest);
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpServletRequest,
+                geoIpService,
+                ActionType.PASSWORD_RESET_CODE_SENT,
+                "Şifre sıfırlama doğrulama kodu gönderildi.",
+                null,
+                "Kod: " + code
+        );
 
+        NotificationPreferences prefs = user.getNotificationPreferences();
 
- */
+        // Bildirim mesajı
+        String message = String.format(
+                "City Card Güvenlik Kodu: %s\nLütfen bu kodu 3 dakika içinde kullanarak işleminizi tamamlayınız.\nKodunuzu kimseyle paylaşmayınız.",
+                code
+        );
+
+        boolean notificationSent = false;
+
+        if (prefs != null) {
+            if (prefs.isPushEnabled() && user.getDeviceInfo() != null && user.getDeviceInfo().getFcmToken() != null) {
+                fcmService.sendNotificationToToken(
+                        user,
+                        "Şifre Sıfırlama Kodu",
+                        message,
+                        NotificationType.INFO,
+                        null
+                );
+                notificationSent = true;
+                verificationCode.setChannel(VerificationChannel.PUSH);
+            }
+
+            if (!notificationSent && prefs.isSmsEnabled()) {
+                SmsRequest smsRequest = new SmsRequest();
+                smsRequest.setTo(normalizedPhone);
+                smsRequest.setMessage(message);
+                smsService.sendSms(smsRequest);
+                notificationSent = true;
+                verificationCode.setChannel(VerificationChannel.SMS);
+            }
+
+            if (!notificationSent && prefs.isEmailEnabled()) {
+                if (user.getProfileInfo() != null
+                        && user.getProfileInfo().getEmail() != null
+                        && user.isEmailVerified()) {
+
+                    EmailMessage emailMessage = new EmailMessage();
+                    emailMessage.setToEmail(user.getProfileInfo().getEmail());
+                    emailMessage.setSubject("City Card - Şifre Sıfırlama Kodu");
+                    emailMessage.setBody("<p>" + message.replace("\n", "<br>") + "</p>");
+                    emailMessage.setHtml(true);
+                    mailService.queueEmail(emailMessage);
+                    notificationSent = true;
+                    verificationCode.setChannel(VerificationChannel.EMAIL);
+                }
+            }
+        }
+
+        if (!notificationSent) {
+            /*
+            SmsRequest smsRequest = new SmsRequest();
+            smsRequest.setTo(normalizedPhone);
+            smsRequest.setMessage(message);
+            smsService.sendSms(smsRequest);
+            verificationCode.setChannel(VerificationChannel.SMS);
+
+             */
+        }
+
+        verificationCodeRepository.save(verificationCode);
 
         return new ResponseMessage("Doğrulama kodu gönderildi.", true);
     }
 
+
     @Override
     @Transactional
-    public ResponseMessage resetPassword(PasswordResetRequest request)
+    public ResponseMessage resetPassword(PasswordResetRequest request, HttpServletRequest httpServletRequest)
             throws PasswordResetTokenNotFoundException,
             PasswordResetTokenExpiredException,
-            PasswordResetTokenIsUsedException, SamePasswordException {
+            PasswordResetTokenIsUsedException,
+            SamePasswordException {
 
         PasswordResetToken passwordResetToken = passwordResetTokenRepository
                 .findByToken(request.getResetToken())
@@ -442,22 +715,46 @@ public class UserManager implements UserService {
         passwordResetToken.setUsed(true);
         passwordResetTokenRepository.save(passwordResetToken);
 
+        String ipAddress = extractClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
+
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpServletRequest,
+                geoIpService,
+                ActionType.USER_PASSWORD_RESET,
+                "Kullanıcı şifresini sıfırladı.",
+                null,
+                null
+        );
+
+
         if (user instanceof User appUser) {
             String title = "Şifre Sıfırlama";
             String message = "Şifreniz başarıyla sıfırlandı.";
             NotificationType type = NotificationType.SUCCESS;
 
             fcmService.sendNotificationToToken(appUser, title, message, type, null);
+
+            if (appUser.getNotificationPreferences() != null && appUser.getNotificationPreferences().isSmsEnabled()) {
+                String phone = appUser.getUserNumber();
+                SmsRequest smsRequest = new SmsRequest();
+                smsRequest.setTo(phone);
+                smsRequest.setMessage("City Card: Şifreniz başarıyla sıfırlandı.");
+                smsService.sendSms(smsRequest);
+            }
+
         }
 
         return new ResponseMessage("Şifreniz başarıyla sıfırlandı.", true);
     }
 
 
+
     @Override
     @Transactional
-    public ResponseMessage changePassword(String username, ChangePasswordRequest request)
-            throws UserIsDeletedException, UserNotActiveException, UserNotFoundException, PasswordsDoNotMatchException, InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException {
+    public ResponseMessage changePassword(String username, ChangePasswordRequest request, HttpServletRequest httpServletRequest)
+            throws UserIsDeletedException, UserNotActiveException, UserNotFoundException,  InvalidNewPasswordException, IncorrectCurrentPasswordException, SamePasswordException {
 
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
 
@@ -571,8 +868,8 @@ public class UserManager implements UserService {
     @Override
     @Transactional
     public boolean updateFCMToken(String fcmToken, String username) throws UserNotFoundException {
-        Optional<SecurityUser> user = securityUserRepository.findByUserNumber(username);
-        user.get().getDeviceInfo().setFcmToken(fcmToken);
+       SecurityUser user = securityUserRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
+        user.getDeviceInfo().setFcmToken(fcmToken);
         return true;
     }
 
@@ -721,8 +1018,6 @@ public class UserManager implements UserService {
  */
 
 
-
-
     @Override
     public ResponseMessage setLowBalanceThreshold(String username, LowBalanceAlertRequest request) throws UserNotFoundException, BusCardNotFoundException, AlreadyBusCardLowBalanceException {
         User user = userRepository.findByUserNumber(username).orElseThrow(UserNotFoundException::new);
@@ -793,11 +1088,14 @@ public class UserManager implements UserService {
 
     @Override
     @Transactional
-    public ResponseMessage verifyEmail(String token, String email)
+    public ResponseMessage verifyEmail(String token, String email, HttpServletRequest request)
             throws VerificationCodeExpiredException,
-            VerificationCodeAlreadyUsedException, VerificationCodeCancelledException,
-            VerificationCodeTypeMismatchException, UserNotFoundException,
-            EmailMismatchException, InvalidVerificationCodeException {
+            VerificationCodeAlreadyUsedException,
+            VerificationCodeCancelledException,
+            VerificationCodeTypeMismatchException,
+            UserNotFoundException,
+            EmailMismatchException,
+            InvalidVerificationCodeException {
 
         VerificationCode code = verificationCodeRepository
                 .findFirstByCodeOrderByCreatedAtDesc(token)
@@ -842,6 +1140,17 @@ public class UserManager implements UserService {
 
         verificationCodeRepository.cancelAllActiveCodes(user.getId(), VerificationPurpose.EMAIL_VERIFICATION);
 
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                request,
+                geoIpService,
+                ActionType.EMAIL_VERIFIED,
+                "E-posta adresi doğrulandı.",
+                null,
+                "E-posta: " + email
+        );
+
+
         fcmService.sendNotificationToToken(
                 user,
                 "E-Posta Doğrulandı",
@@ -860,6 +1169,7 @@ public class UserManager implements UserService {
 
         User user = userRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
+
         if (user.getWallet() != null && user.getWallet().getBalance() != null) {
             if (user.getWallet().getBalance().compareTo(BigDecimal.ZERO) > 0) {
                 throw new WalletBalanceNotZeroException();
@@ -877,45 +1187,60 @@ public class UserManager implements UserService {
         user.setDeleted(true);
         user.setStatus(UserStatus.DELETED);
         tokenRepository.deleteBySecurityUserId(user.getId());
+        userRepository.save(user);
 
-        AuditLog auditLog = new AuditLog();
-        auditLog.setUser(user);
-        auditLog.setAction(ActionType.DELETE_USER);
-        auditLog.setDescription("Kullanıcı hesap sildi açıklama :" + request.getReason());
-        auditLog.setTimestamp(LocalDateTime.now());
 
-        DeviceInfo deviceInfo = new DeviceInfo();
-        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpRequest,
+                geoIpService,
+                ActionType.DELETE_USER,
+                "Kullanıcı hesap sildi. Sebep: " + (request.getReason() != null ? request.getReason() : "Belirtilmedi"),
+                null,
+                null
+        );
 
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isEmpty()) {
-            ipAddress = httpRequest.getRemoteAddr();
+
+        // Push bildirimi
+        if (user.getNotificationPreferences() != null && user.getNotificationPreferences().isPushEnabled()) {
+            fcmService.sendNotificationToToken(
+                    user,
+                    "Hesap Silme",
+                    "Hesabınız başarıyla silindi. İyi günler dileriz.",
+                    NotificationType.INFO,
+                    null
+            );
         }
-        deviceInfo.setIpAddress(ipAddress);
 
-        auditLog.setDeviceInfo(deviceInfo);
+        // SMS bildirimi
+        if (user.getNotificationPreferences() != null && user.getNotificationPreferences().isSmsEnabled()) {
+            String phone = user.getUserNumber();
+            SmsRequest smsRequest = new SmsRequest();
+            smsRequest.setTo(phone);
+            smsRequest.setMessage("City Card: Hesabınız başarıyla silindi. Teşekkür ederiz.");
+            smsService.sendSms(smsRequest);
+        }
 
-        auditLogRepository.save(auditLog);
-
+        // E-posta bildirimi
         if (user.getProfileInfo().getEmail() != null) {
             EmailMessage message = new EmailMessage();
             message.setToEmail(user.getProfileInfo().getEmail());
             message.setSubject("Hesap Silme Talebiniz Gerçekleştirildi");
 
             String body = """
-                        <html>
-                            <body style="font-family: Arial, sans-serif; color: #333;">
-                                <h2>Sayın %s,</h2>
-                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla silinmiştir.</p>
-                                <p>Silme sebebiniz: <em>%s</em></p>
-                                <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
-                                <br>
-                                <p>Saygılarımızla,</p>
-                                <p><strong>Destek Ekibi</strong></p>
-                            </body>
-                        </html>
-                    """.formatted(
-                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),  // veya user.getFullName()
+                <html>
+                    <body style="font-family: Arial, sans-serif; color: #333;">
+                        <h2>Sayın %s,</h2>
+                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla silinmiştir.</p>
+                        <p>Silme sebebiniz: <em>%s</em></p>
+                        <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                        <br>
+                        <p>Saygılarımızla,</p>
+                        <p><strong>Destek Ekibi</strong></p>
+                    </body>
+                </html>
+            """.formatted(
+                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
                     request.getReason() != null ? request.getReason() : "Belirtilmedi"
             );
@@ -928,6 +1253,7 @@ public class UserManager implements UserService {
         return new ResponseMessage("Hesabınız silindi", true);
     }
 
+
     @Override
     @Transactional
     public ResponseMessage freezeAccount(String username, FreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException {
@@ -938,26 +1264,75 @@ public class UserManager implements UserService {
         user.setStatus(UserStatus.FROZEN);
         userRepository.save(user);
 
-        AuditLog auditLog = new AuditLog();
-        auditLog.setUser(user);
-        auditLog.setAction(ActionType.FREEZE_ACCOUNT);
-        auditLog.setDescription("Kullanıcı hesabını geçici olarak dondurdu.");
-        auditLog.setTimestamp(LocalDateTime.now());
-
-        DeviceInfo deviceInfo = new DeviceInfo();
-        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
-
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isEmpty()) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
-        deviceInfo.setIpAddress(ipAddress);
-
+        String ipAddress = extractClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
-        deviceInfo.setUserAgent(userAgent);
 
-        auditLog.setDeviceInfo(deviceInfo);
-        auditLogRepository.save(auditLog);
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpRequest,
+                geoIpService,
+                ActionType.FREEZE_ACCOUNT,
+                "Kullanıcı hesabını geçici olarak dondurdu.",
+                null,
+                null
+        );
+
+
+        String notificationTitle = "Hesap Dondurma";
+        String notificationMessage = "Hesabınız başarıyla geçici olarak donduruldu.";
+
+        NotificationPreferences prefs = user.getNotificationPreferences();
+
+        if (prefs != null) {
+            // Push bildirimi
+            if (prefs.isPushEnabled()) {
+                fcmService.sendNotificationToToken(
+                        user,
+                        notificationTitle,
+                        notificationMessage,
+                        NotificationType.INFO,
+                        null
+                );
+            }
+
+            // SMS bildirimi
+            if (prefs.isSmsEnabled()) {
+                String phone = user.getUserNumber();
+                if (phone != null && !phone.isBlank()) {
+                    SmsRequest smsRequest = new SmsRequest();
+                    smsRequest.setTo(phone);
+                    smsRequest.setMessage("City Card: " + notificationMessage);
+                    smsService.sendSms(smsRequest);
+                }
+            }
+        }
+
+        // E-posta bildirimi
+        if (user.getProfileInfo() != null && user.getProfileInfo().getEmail() != null) {
+            EmailMessage message = new EmailMessage();
+            message.setToEmail(user.getProfileInfo().getEmail());
+            message.setSubject("Hesap Dondurma Bilgilendirmesi");
+
+            String body = """
+                <html>
+                    <body style="font-family: Arial, sans-serif; color: #333;">
+                        <h2>Sayın %s,</h2>
+                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız geçici olarak dondurulmuştur.</p>
+                        <p>İşleminiz hakkında herhangi bir sorunuz varsa bizimle iletişime geçebilirsiniz.</p>
+                        <br>
+                        <p>Saygılarımızla,</p>
+                        <p><strong>Destek Ekibi</strong></p>
+                    </body>
+                </html>
+            """.formatted(
+                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+            );
+
+            message.setBody(body);
+            message.setHtml(true);
+            mailService.queueEmail(message);
+        }
 
         return new ResponseMessage("Hesabınız başarıyla geçici olarak donduruldu.", true);
     }
@@ -968,7 +1343,7 @@ public class UserManager implements UserService {
     @Transactional
     public ResponseMessage terminateSessionByAdmin(Long userId) throws UserNotFoundException, SessionNotFoundException, SessionAlreadyExpiredException {
         SecurityUser user = securityUserRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException());
+                .orElseThrow(UserNotFoundException::new);
 
         Optional<Token> tokenOpt = tokenRepository.findTokenBySecurityUser_IdAndTokenType(userId, TokenType.REFRESH);
 
@@ -1011,60 +1386,74 @@ public class UserManager implements UserService {
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
-        AuditLog auditLog = new AuditLog();
-        auditLog.setUser(user);
-        auditLog.setAction(ActionType.UNFREEZE_ACCOUNT);
-        auditLog.setDescription("Kullanıcı hesabını yeniden aktif hale getirdi.");
-        auditLog.setTimestamp(LocalDateTime.now());
 
-        DeviceInfo deviceInfo = new DeviceInfo();
-        deviceInfo.setDeviceUuid(UUID.randomUUID().toString());
+        updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpRequest,
+                geoIpService,
+                ActionType.UNFREEZE_ACCOUNT,
+                "Kullanıcı hesabını yeniden aktif hale getirdi.",
+                null,
+                null
+        );
 
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isEmpty()) {
-            ipAddress = httpRequest.getRemoteAddr();
+        String notificationTitle = "Hesap Aktifleştirildi";
+        String notificationMessage = "Hesabınız başarıyla yeniden aktifleştirildi.";
+
+        NotificationPreferences prefs = user.getNotificationPreferences();
+
+        if (prefs != null) {
+            // Push bildirimi
+            if (prefs.isPushEnabled()) {
+                fcmService.sendNotificationToToken(
+                        user,
+                        notificationTitle,
+                        notificationMessage,
+                        NotificationType.SUCCESS,
+                        null
+                );
+            }
+
+            // SMS bildirimi
+            if (prefs.isSmsEnabled()) {
+                String phone = user.getUserNumber();
+                if (phone != null && !phone.isBlank()) {
+                    SmsRequest smsRequest = new SmsRequest();
+                    smsRequest.setTo(phone);
+                    smsRequest.setMessage("City Card: " + notificationMessage);
+                    smsService.sendSms(smsRequest);
+                }
+            }
         }
-        deviceInfo.setIpAddress(ipAddress);
 
-        String userAgent = httpRequest.getHeader("User-Agent");
-        deviceInfo.setUserAgent(userAgent);
+        // E-posta bildirimi
+        if (user.getProfileInfo() != null && user.getProfileInfo().getEmail() != null) {
+            EmailMessage message = new EmailMessage();
+            message.setToEmail(user.getProfileInfo().getEmail());
+            message.setSubject("Hesap Aktifleştirme Bilgilendirmesi");
 
-        auditLog.setDeviceInfo(deviceInfo);
-        auditLogRepository.save(auditLog);
+            String body = """
+                <html>
+                    <body style="font-family: Arial, sans-serif; color: #333;">
+                        <h2>Sayın %s,</h2>
+                        <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla yeniden aktifleştirilmiştir.</p>
+                        <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                        <br>
+                        <p>Saygılarımızla,</p>
+                        <p><strong>Destek Ekibi</strong></p>
+                    </body>
+                </html>
+            """.formatted(
+                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+            );
+
+            message.setBody(body);
+            message.setHtml(true);
+            mailService.queueEmail(message);
+        }
 
         return new ResponseMessage("Hesabınız yeniden aktifleştirildi.", true);
-    }
-
-
-
-    private String buildEmailBodyFromCacheDTO(CacheUserDTO dto) {
-        StringBuilder sb = new StringBuilder();
-
-        String fullName = (dto.getName() != null && dto.getSurname() != null) ?
-                dto.getName() + " " + dto.getSurname() : "Kullanıcı";
-
-        sb.append("Sayın ").append(fullName).append(",\n\n");
-        sb.append("City Card hesabınıza ait bilgiler aşağıda yer almaktadır:\n\n");
-
-        sb.append("──────────────────────────────\n");
-        sb.append("Kullanıcı ID      : ").append(dto.getId()).append("\n");
-        sb.append("Kullanıcı No      : ").append(dto.getTelephone() != null ? dto.getTelephone() : "—").append("\n");
-        sb.append("Ad                : ").append(dto.getName() != null ? dto.getName() : "—").append("\n");
-        sb.append("Soyad             : ").append(dto.getSurname() != null ? dto.getSurname() : "—").append("\n");
-        sb.append("E-posta           : ").append(dto.getEmail() != null ? dto.getEmail() : "—").append("\n");
-        sb.append("TC Kimlik No      : ").append(dto.getNationalId() != null ? dto.getNationalId() : "—").append("\n");
-        sb.append("Doğum Tarihi      : ").append(dto.getBirthDate() != null ? dto.getBirthDate() : "—").append("\n");
-        sb.append("Cüzdan Aktif      : ").append(dto.isWalletActivated() ? "Evet" : "Hayır").append("\n");
-        sb.append("Negatif Bakiye İzin: ").append(dto.isAllowNegativeBalance() ? "Evet" : "Hayır").append("\n");
-        sb.append("Negatif Bakiye Limit: ").append(dto.getNegativeBalanceLimit() != null ? dto.getNegativeBalanceLimit() : "0.0").append("\n");
-        sb.append("Otomatik Yükleme   : ").append(dto.isAutoTopUpEnabled() ? "Aktif" : "Pasif").append("\n");
-        sb.append("──────────────────────────────\n\n");
-
-        sb.append("Herhangi bir sorunuz için bizimle iletişime geçebilirsiniz.\n");
-        sb.append("City Card Ekibi olarak sizi aramızda görmekten mutluluk duyuyoruz.\n\n");
-        sb.append("İyi günler dileriz.");
-
-        return sb.toString();
     }
 
     public String randomSixDigit() {

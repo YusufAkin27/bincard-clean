@@ -2,26 +2,24 @@ package akin.city_card.user.controller;
 
 import akin.city_card.admin.core.request.UpdateLocationRequest;
 import akin.city_card.admin.core.response.AuditLogDTO;
-import akin.city_card.bus.exceptions.RouteNotFoundException;
+import akin.city_card.bus.exceptions.UnauthorizedAccessException;
 import akin.city_card.buscard.core.request.FavoriteCardRequest;
 import akin.city_card.buscard.core.response.FavoriteBusCardDTO;
 import akin.city_card.buscard.exceptions.BusCardNotFoundException;
-import akin.city_card.geoAlert.core.request.GeoAlertRequest;
 import akin.city_card.news.exceptions.UnauthorizedAreaException;
 import akin.city_card.notification.core.request.NotificationPreferencesDTO;
 import akin.city_card.response.ResponseMessage;
-import akin.city_card.route.exceptions.RouteNotFoundStationException;
 import akin.city_card.security.exception.*;
-import akin.city_card.station.exceptions.StationNotFoundException;
 import akin.city_card.user.core.request.*;
 import akin.city_card.user.core.response.CacheUserDTO;
-import akin.city_card.geoAlert.core.response.GeoAlertDTO;
 import akin.city_card.user.core.response.SearchHistoryDTO;
 import akin.city_card.user.core.response.Views;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.user.service.abstracts.UserService;
 import akin.city_card.verification.exceptions.*;
+import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.google.api.Http;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +30,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -50,100 +49,97 @@ public class UserController {
 
     @PostMapping("/sign-up")
     public ResponseMessage signUp(@Valid @RequestBody CreateUserRequest createUserRequest, HttpServletRequest request) throws PhoneNumberRequiredException, PhoneNumberAlreadyExistsException, InvalidPhoneNumberFormatException, VerificationCodeStillValidException {
-        String ipAddress = extractClientIp(request);
-        String userAgent = request.getHeader("User-Agent");
-
-        createUserRequest.setIpAddress(ipAddress);
-        createUserRequest.setUserAgent(userAgent);
-
-        return userService.create(createUserRequest);
+        return userService.create(createUserRequest, request);
     }
 
-    private String extractClientIp(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader == null || xfHeader.isEmpty()) {
-            return request.getRemoteAddr();
-        }
-        return xfHeader.split(",")[0];
-    }
-
-
-    //sms doğrulama
     @PostMapping("/verify/phone")
-    public ResponseMessage verifyPhone(@Valid @RequestBody VerificationCodeRequest verificationCodeRequest) throws UserNotFoundException {
-        return userService.verifyPhone(verificationCodeRequest);
+    public ResponseMessage verifyPhone(@Valid @RequestBody VerificationCodeRequest verificationCodeRequest, HttpServletRequest request) throws UserNotFoundException, CancelledVerificationCodeException, VerificationCodeNotFoundException, UsedVerificationCodeException, VerificationCodeExpiredException {
+        return userService.verifyPhone(verificationCodeRequest, request);
     }
 
     // 📲 Adım 1: Şifremi unuttum -> Telefon numarasına kod gönder
     @PostMapping("/password/forgot")
-    public ResponseMessage sendResetCode(@RequestParam("phone") String phone) throws UserNotFoundException {
-        return userService.sendPasswordResetCode(phone);
+    public ResponseMessage sendResetCode(@RequestParam("phone") String phone,HttpServletRequest httpServletRequest) throws UserNotFoundException {
+        return userService.sendPasswordResetCode(phone,httpServletRequest);
     }
 
-    // ✅ Adım 2: Telefon numarasını doğrulama (kod girilerek)
     @PostMapping("/password/verify-code")
     public ResponseMessage verifyResetCode(@Valid @RequestBody VerificationCodeRequest verificationCodeRequest)
-            throws UserNotFoundException, VerificationCodeExpiredException, InvalidOrUsedVerificationCodeException {
+            throws  VerificationCodeExpiredException, InvalidOrUsedVerificationCodeException {
         return userService.verifyPhoneForPasswordReset(verificationCodeRequest);
     }
 
-    // 🔐 Adım 3: Yeni şifre belirleme
     @PostMapping("/password/reset")
-    public ResponseMessage resetPassword(@RequestBody PasswordResetRequest request) throws SamePasswordException, PasswordTooShortException, PasswordResetTokenNotFoundException, PasswordResetTokenExpiredException, PasswordResetTokenIsUsedException {
-        return userService.resetPassword(request);
+    public ResponseMessage resetPassword(@RequestBody PasswordResetRequest request, HttpServletRequest httpServletRequest) throws SamePasswordException, PasswordTooShortException, PasswordResetTokenNotFoundException, PasswordResetTokenExpiredException, PasswordResetTokenIsUsedException {
+        return userService.resetPassword(request,httpServletRequest);
     }
 
     @PutMapping("/password/change")
     public ResponseMessage changePassword(@AuthenticationPrincipal UserDetails userDetails,
-                                          @RequestBody ChangePasswordRequest request) throws UserNotFoundException, PasswordsDoNotMatchException, IncorrectCurrentPasswordException, UserNotActiveException, InvalidNewPasswordException, SamePasswordException, UserIsDeletedException {
-        return userService.changePassword(userDetails.getUsername(), request);
+                                          @RequestBody ChangePasswordRequest request,
+                                          HttpServletRequest httpServletRequest) throws UserNotFoundException, PasswordsDoNotMatchException, IncorrectCurrentPasswordException, UserNotActiveException, InvalidNewPasswordException, SamePasswordException, UserIsDeletedException {
+        return userService.changePassword(userDetails.getUsername(), request,httpServletRequest);
     }
 
     // Telefon için yeniden doğrulama kodu gönderme
     @PostMapping("/verify/phone/resend")
     public ResponseMessage resendPhoneVerification(@RequestBody ResendPhoneVerificationRequest request, HttpServletRequest httpServletRequest) throws UserNotFoundException {
-        String ipAddress = extractClientIp(httpServletRequest);
-        String userAgent = httpServletRequest.getHeader("User-Agent");
-
-        request.setIpAddress(ipAddress);
-        request.setUserAgent(userAgent);
         return userService.resendPhoneVerificationCode(request);
     }
 
+    private void isAdminOrSuperAdmin(UserDetails userDetails) throws UnauthorizedAccessException {
+        if (userDetails == null || userDetails.getAuthorities() == null) {
+            throw new UnauthorizedAccessException();
+        }
+
+        boolean authorized = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ADMIN") || role.equals("SUPERADMIN"));
+
+        if (!authorized) {
+            throw new UnauthorizedAccessException();
+        }
+    }
+
     @PostMapping("/collective-sign-up")
-    public List<ResponseMessage> collectiveSignUp(@Valid @RequestBody CreateUserRequestList createUserRequestList) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException {
-        return userService.createAll(createUserRequestList.getUsers());
+    public List<ResponseMessage> collectiveSignUp(@AuthenticationPrincipal UserDetails userDetails,
+                                                  @Valid @RequestBody CreateUserRequestList createUserRequestList,
+                                                  HttpServletRequest httpServletRequest) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException, UnauthorizedAccessException, AdminOrSuperAdminNotFoundException {
+        isAdminOrSuperAdmin(userDetails);
+        return userService.createAll(userDetails.getUsername(),createUserRequestList.getUsers(), httpServletRequest);
     }
 
     // 2. Profil görüntüleme
     @GetMapping("/profile")
     @JsonView(Views.User.class)
-    public CacheUserDTO getProfile(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
-        return userService.getProfile(userDetails.getUsername());
+    public CacheUserDTO getProfile(@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpServletRequest) throws UserNotFoundException {
+        return userService.getProfile(userDetails.getUsername(), httpServletRequest);
     }
 
     // 3. Profil güncelleme
     @PutMapping("/profile")
     public ResponseMessage updateProfile(@AuthenticationPrincipal UserDetails userDetails,
-                                         @RequestBody UpdateProfileRequest updateProfileRequest) throws UserNotFoundException, EmailAlreadyExistsException {
-        return userService.updateProfile(userDetails.getUsername(), updateProfileRequest);
+                                         @RequestBody UpdateProfileRequest updateProfileRequest,
+                                         HttpServletRequest httpServletRequest) throws UserNotFoundException, EmailAlreadyExistsException {
+        return userService.updateProfile(userDetails.getUsername(), updateProfileRequest, httpServletRequest);
     }
 
     @PostMapping("/email-verify/{token}")
     public ResponseMessage verifyEmail(
             @PathVariable("token") String token,
-            @RequestParam("email") String email
+            @RequestParam("email") String email,
+            HttpServletRequest request
     ) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCodeNotFoundException, VerificationCodeExpiredException, VerificationCodeAlreadyUsedException, EmailMismatchException, VerificationCodeTypeMismatchException, VerificationCodeCancelledException, InvalidVerificationCodeException {
-        return userService.verifyEmail(token, email);
+        return userService.verifyEmail(token, email,request);
     }
 
 
     //profil fotoğrafı yükleme
     @PutMapping("/profile/photo")
     public ResponseMessage uploadProfilePhoto(@AuthenticationPrincipal UserDetails userDetails,
-                                              @RequestParam("photo")
-                                              MultipartFile file) throws UserNotFoundException, PhotoSizeLargerException, IOException {
-        return userService.updateProfilePhoto(userDetails.getUsername(), file);
+                                              @RequestParam("photo") MultipartFile file,
+                                              HttpServletRequest httpServletRequest) throws UserNotFoundException, PhotoSizeLargerException, IOException {
+        return userService.updateProfilePhoto(userDetails.getUsername(), file,httpServletRequest);
     }
 
     @DeleteMapping("/profile/photo")
@@ -184,19 +180,6 @@ public class UserController {
     /**
      * İstemci IP adresini alma metodu
      */
-    private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-
-        return request.getRemoteAddr();
-    }
 
     /*
         // Giriş geçmişini görüntüleme
@@ -602,8 +585,6 @@ public class UserController {
     public ResponseMessage clearSearchHistory(@AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {
         return userService.clearSearchHistory(userDetails.getUsername());
     }
-
-
 
 
     @GetMapping("/activity-log")

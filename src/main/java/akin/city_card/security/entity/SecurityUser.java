@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 @SuperBuilder
 @Table(name = "security_users")
 @Inheritance(strategy = InheritanceType.JOINED)
-public class SecurityUser implements UserDetails, Serializable {
+public class SecurityUser implements UserDetails {
     private static final long serialVersionUID = 1L;
 
     @Id
