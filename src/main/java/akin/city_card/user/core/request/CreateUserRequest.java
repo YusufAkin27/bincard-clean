@@ -28,10 +28,6 @@ public class CreateUserRequest {
     @ValidPassword
     private String password;
 
-    private String deviceUuid;    // Cihazın UUID'si (mobil cihazdan alınacak)
-    private String fcmToken;      // Bildirim token (Firebase Cloud Messaging)
-    private String ipAddress;
-    private String userAgent;
 }
 
 

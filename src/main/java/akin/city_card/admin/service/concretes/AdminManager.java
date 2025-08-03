@@ -61,7 +61,6 @@ public class AdminManager implements AdminService {
         }
 
         DeviceInfo deviceInfo = DeviceInfo.builder()
-                .deviceUuid(adminRequest.getDeviceUuid())
                 .ipAddress(adminRequest.getIpAddress())
                 .fcmToken(adminRequest.getFcmToken()) // Eğer varsa
                 .build();
@@ -229,10 +228,6 @@ public class AdminManager implements AdminService {
             updated = true;
         }
 
-        if (request.getDeviceUuid() != null && !request.getDeviceUuid().isBlank()) {
-            deviceInfo.setDeviceUuid(request.getDeviceUuid());
-            updated = true;
-        }
 
         if (request.getIpAddress() != null && !request.getIpAddress().isBlank()) {
             deviceInfo.setIpAddress(request.getIpAddress());

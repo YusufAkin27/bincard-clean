@@ -85,7 +85,6 @@ public class UserConverterImpl implements UserConverter {
                 .deleted(user.isDeleted())
                 // Device Info
                 .fcmToken(user.getDeviceInfo() != null ? user.getDeviceInfo().getFcmToken() : null)
-                .deviceUuid(user.getDeviceInfo() != null ? user.getDeviceInfo().getDeviceUuid() : null)
 
                 .phoneVerified(user.isPhoneVerified())
                 .emailVerified(user.isEmailVerified())
@@ -134,9 +133,6 @@ public class UserConverterImpl implements UserConverter {
                 .profilePicture("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")
                 .build();
         DeviceInfo deviceInfo = DeviceInfo.builder()
-                .deviceUuid(request.getDeviceUuid())
-                .ipAddress(request.getIpAddress())
-                .fcmToken(request.getFcmToken())
                 .build();
         return User.builder()
                 .userNumber(request.getTelephone())

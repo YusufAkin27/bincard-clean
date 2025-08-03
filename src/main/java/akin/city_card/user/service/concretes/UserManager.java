@@ -121,7 +121,7 @@ public class UserManager implements UserService {
             }
 
             verificationCodeRepository.cancelAllActiveCodes(existingUser.getId(), VerificationPurpose.REGISTER);
-            sendVerificationCode(existingUser, request.getIpAddress(), request.getUserAgent(), VerificationPurpose.REGISTER);
+            sendVerificationCode(existingUser, VerificationPurpose.REGISTER);
 
             return new ResponseMessage("Telefon numarası daha önce kayıt olmuş ancak aktif edilmemiş. Yeni doğrulama kodu gönderildi.", true);
         }
@@ -131,7 +131,7 @@ public class UserManager implements UserService {
 
         userRepository.save(user);
 
-        sendVerificationCode(user, request.getIpAddress(), request.getUserAgent(), VerificationPurpose.REGISTER);
+        sendVerificationCode(user, VerificationPurpose.REGISTER);
 
         createNotification(
                 user,
@@ -159,7 +159,6 @@ public class UserManager implements UserService {
     public DeviceInfo buildDeviceInfoFromRequest(HttpServletRequest httpRequest, GeoIpService geoIpService) {
         String ipAddress = extractClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
-        String referer = httpRequest.getHeader("Referer");
 
         String deviceType = "Unknown";
         if (userAgent != null) {
@@ -170,17 +169,14 @@ public class UserManager implements UserService {
         }
 
         GeoLocationData geoData = geoIpService.getGeoData(ipAddress);
-
         return DeviceInfo.builder()
-                .deviceUuid(UUID.randomUUID().toString())
                 .ipAddress(ipAddress)
                 .userAgent(userAgent)
                 .deviceType(deviceType)
-                .city(geoData != null ? geoData.getCity() : null)
-                .region(geoData != null ? geoData.getRegion() : null)
-                .country(geoData != null ? geoData.getCountry_name() : null)
-                .timezone(geoData != null ? geoData.getTimezone() : null)
-                .org(geoData != null ? geoData.getOrg() : null)
+                .city(Optional.ofNullable(geoData).map(GeoLocationData::getCity).orElse(null))
+                .region(Optional.ofNullable(geoData).map(GeoLocationData::getRegion).orElse(null))
+                .timezone(Optional.ofNullable(geoData).map(GeoLocationData::getTimezone).orElse(null))
+                .org(Optional.ofNullable(geoData).map(GeoLocationData::getOrg).orElse(null))
                 .build();
     }
 
@@ -200,7 +196,7 @@ public class UserManager implements UserService {
 
 
     @Transactional
-    public void sendVerificationCode(SecurityUser user, String ipAddress, String userAgent, VerificationPurpose purpose) {
+    public void sendVerificationCode(SecurityUser user,VerificationPurpose purpose) {
         String code = randomSixDigit();
         LocalDateTime now = LocalDateTime.now();
 
@@ -213,8 +209,6 @@ public class UserManager implements UserService {
                 .used(false)
                 .cancelled(false)
                 .purpose(purpose)
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
                 .build();
 
         verificationCodeRepository.save(verificationCode);

@@ -362,7 +362,6 @@ public class AuthManager implements AuthService {
 
         DeviceInfo updatedDeviceInfo = DeviceInfo.builder()
                 .ipAddress(metadata.getIpAddress())
-                .deviceUuid(metadata.getDeviceUuid())
                 .fcmToken(metadata.getFcmToken())
                 .build();
         user.setDeviceInfo(updatedDeviceInfo);

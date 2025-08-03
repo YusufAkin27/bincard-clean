@@ -70,7 +70,6 @@ private final PasswordEncoder passwordEncoder;
                         .profilePicture("https://example.com/profile" + i + ".jpg")
                         .build())
                 .deviceInfo(DeviceInfo.builder()
-                        .deviceUuid("device-uuid-" + i)
                         .ipAddress("192.168.1." + i)
                         .fcmToken("token-" + i)
                         .build())

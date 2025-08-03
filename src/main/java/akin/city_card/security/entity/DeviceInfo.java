@@ -13,7 +13,6 @@ import lombok.NoArgsConstructor;
 @Builder
 public class DeviceInfo {
     private String fcmToken;
-    private String deviceUuid;
     private String ipAddress;
     private String userAgent;
     private String deviceType;       // Mobile, Desktop, Tablet vs.

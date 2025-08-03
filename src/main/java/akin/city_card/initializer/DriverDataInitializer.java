@@ -54,7 +54,6 @@ public class DriverDataInitializer implements ApplicationRunner {
                         .email("driver" + i + "@citycard.com")
                         .build())
                 .deviceInfo(DeviceInfo.builder()
-                        .deviceUuid("device-driver-" + i)
                         .ipAddress("10.10.0." + i)
                         .build())
                 .nationalId(generateNationalId(i))

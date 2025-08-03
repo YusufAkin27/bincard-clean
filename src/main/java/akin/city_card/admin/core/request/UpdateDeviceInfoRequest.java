@@ -7,8 +7,6 @@ public class UpdateDeviceInfoRequest {
 
     private String fcmToken;
 
-    private String deviceUuid;             // Benzersiz cihaz ID'si
-
     private String ipAddress;              // Güncel IP adresi
 
     private Double lastKnownLatitude;      // Lokasyon
