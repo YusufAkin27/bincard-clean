@@ -179,6 +179,29 @@ public class ContractManager implements ContractService {
                 .collect(Collectors.toList());
     }
 
+    // Herkese açık API metodları
+    @Override
+    public List<ContractDTO> getPublicActiveContracts() {
+        return contractRepository.findByActiveOrderByCreatedAtDesc(true)
+                .stream()
+                .map(contractConverter::mapToContractDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public ContractDTO getLatestContractByType(ContractType type) {
+        Contract contract = contractRepository.findTopByTypeAndActiveOrderByCreatedAtDesc(type, true)
+                .orElseThrow(() -> new RuntimeException("Bu tip için aktif sözleşme bulunamadı: " + type));
+        return contractConverter.mapToContractDTO(contract);
+    }
+
+    @Override
+    public ContractDTO getPublicContractById(Long contractId) {
+        Contract contract = contractRepository.findByIdAndActive(contractId, true)
+                .orElseThrow(() -> new RuntimeException("Aktif sözleşme bulunamadı"));
+        return contractConverter.mapToContractDTO(contract);
+    }
+
     // Kullanıcı İşlemleri
     @Override
     public List<UserContractDTO> getUserContracts(String username) throws UserNotFoundException {
@@ -269,7 +292,6 @@ public class ContractManager implements ContractService {
         }
     }
 
-
     @Override
     @Transactional
     public ResponseMessage rejectContract(String username, Long contractId, RejectContractRequest request) {
@@ -316,6 +338,55 @@ public class ContractManager implements ContractService {
                 .collect(Collectors.toList());
     }
 
+    // Yeni eklenen method - Kullanıcının kabul ettiği sözleşmeleri getir
+    @Override
+    public List<AcceptedContractDTO> getUserAcceptedContracts(String username) throws UserNotFoundException {
+        return getAcceptedContracts(username);
+    }
+
+    // Otomatik sözleşme kabul etme methodu - Kayıt sırasında kullanılacak
+    @Override
+    @Transactional
+    public void autoAcceptMandatoryContracts(User user, String ipAddress, String userAgent) {
+        List<ContractType> mandatoryTypes = List.of(
+                ContractType.UYELIK_SOZLESMESI,
+                ContractType.AYDINLATMA_METNI,
+                ContractType.VERI_ISLEME_IZNI,
+                ContractType.GIZLILIK_POLITIKASI
+        );
+
+        for (ContractType type : mandatoryTypes) {
+            try {
+                Contract contract = contractRepository.findTopByTypeAndActiveOrderByCreatedAtDesc(type, true)
+                        .orElse(null);
+
+                if (contract != null) {
+                    // Daha önce kabul edilmiş mi kontrol et
+                    boolean alreadyAccepted = acceptanceRepository.existsByUserAndContractAndAccepted(user, contract, true);
+
+                    if (!alreadyAccepted) {
+                        UserContractAcceptance acceptance = UserContractAcceptance.builder()
+                                .user(user)
+                                .contract(contract)
+                                .accepted(true)
+                                .ipAddress(ipAddress)
+                                .userAgent(userAgent)
+                                .contractVersion(contract.getVersion())
+                                .acceptedAt(LocalDateTime.now())
+                                .build();
+
+                        acceptanceRepository.save(acceptance);
+
+                        log.info("Otomatik sözleşme kabulü: {} - Kullanıcı: {} - IP: {}",
+                                contract.getTitle(), user.getUserNumber(), ipAddress);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Otomatik sözleşme kabulü sırasında hata - Tip: {} - Kullanıcı: {}", type, user.getUserNumber(), e);
+            }
+        }
+    }
+
     // Kontrol İşlemleri
     @Override
     public boolean hasUserAcceptedContract(String username, Long contractId) throws UserNotFoundException {
@@ -360,6 +431,4 @@ public class ContractManager implements ContractService {
 
         return unacceptedContracts;
     }
-
-
 }

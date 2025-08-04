@@ -62,6 +62,7 @@ public class SecurityConfig {
                 "/v1/api/payment-point/*/status",
                 "/v1/api/user/email-verify/**",
                 "/v1/api/wallet/name/**",
+                "/v1/api/public/contracts/**",
 
                 // ✅ Haber görüntüleme uçları - HERKESE AÇIK
                 "/v1/api/news/**",

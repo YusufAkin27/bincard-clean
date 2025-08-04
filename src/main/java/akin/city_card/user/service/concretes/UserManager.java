@@ -14,6 +14,7 @@ import akin.city_card.buscard.model.BusCard;
 import akin.city_card.buscard.model.UserFavoriteCard;
 import akin.city_card.buscard.repository.BusCardRepository;
 import akin.city_card.cloudinary.MediaUploadService;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.geoIpService.GeoIpService;
 import akin.city_card.geoIpService.GeoLocationData;
 import akin.city_card.location.model.Location;
@@ -58,6 +59,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -75,6 +77,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserManager implements UserService {
     private final UserRepository userRepository;
     private final UserConverter userConverter;
@@ -92,6 +95,7 @@ public class UserManager implements UserService {
     private final AuditLogConverter auditLogConverter;
     private final FCMService fcmService;
     private final GeoIpService geoIpService;
+    private final ContractService contractService;
     private final TokenRepository tokenRepository;
 
 
@@ -128,6 +132,19 @@ public class UserManager implements UserService {
 
         userRepository.save(user);
 
+        // IP ve User-Agent bilgilerini al
+        String ipAddress = extractClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
+
+        // Zorunlu sözleşmeleri otomatik olarak kabul et
+        try {
+            contractService.autoAcceptMandatoryContracts(user, ipAddress, userAgent);
+            log.info("Zorunlu sözleşmeler otomatik kabul edildi - Kullanıcı: {}", normalizedPhone);
+        } catch (Exception e) {
+            log.error("Zorunlu sözleşmeler otomatik kabul edilirken hata - Kullanıcı: {}", normalizedPhone, e);
+            // Sözleşme kabul hatası kullanıcı kaydını engellemez, sadece log'lanır
+        }
+
         sendVerificationCode(user, VerificationPurpose.REGISTER);
 
         createNotification(
@@ -148,9 +165,10 @@ public class UserManager implements UserService {
                 "Telefon: " + normalizedPhone
         );
 
-
         return new ResponseMessage("Kullanıcı başarıyla oluşturuldu. Doğrulama kodu SMS olarak gönderildi.", true);
     }
+
+
 
     public DeviceInfo buildDeviceInfoFromRequest(HttpServletRequest httpRequest, GeoIpService geoIpService) {
         String ipAddress = extractClientIp(httpRequest);
