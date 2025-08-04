@@ -3,9 +3,16 @@ package akin.city_card.security.manager;
 
 import akin.city_card.admin.exceptions.AdminNotApprovedException;
 import akin.city_card.admin.exceptions.AdminNotFoundException;
+import akin.city_card.admin.model.ActionType;
 import akin.city_card.admin.model.Admin;
 import akin.city_card.admin.repository.AdminRepository;
+import akin.city_card.geoIpService.GeoIpService;
 import akin.city_card.location.model.Location;
+import akin.city_card.mail.EmailMessage;
+import akin.city_card.mail.MailService;
+import akin.city_card.notification.model.NotificationPreferences;
+import akin.city_card.notification.model.NotificationType;
+import akin.city_card.notification.service.FCMService;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.dto.*;
 import akin.city_card.security.entity.DeviceInfo;
@@ -16,15 +23,20 @@ import akin.city_card.security.exception.*;
 import akin.city_card.security.repository.SecurityUserRepository;
 import akin.city_card.security.repository.TokenRepository;
 import akin.city_card.security.service.JwtService;
+import akin.city_card.sms.SmsRequest;
 import akin.city_card.sms.SmsService;
 import akin.city_card.superadmin.model.SuperAdmin;
 import akin.city_card.superadmin.repository.SuperAdminRepository;
+import akin.city_card.user.core.request.UnfreezeAccountRequest;
+import akin.city_card.user.exceptions.AccountNotFrozenException;
 import akin.city_card.user.model.LoginHistory;
 import akin.city_card.user.model.User;
 import akin.city_card.user.model.UserStatus;
 import akin.city_card.user.repository.LoginHistoryRepository;
 import akin.city_card.user.repository.UserRepository;
+import akin.city_card.user.service.abstracts.UserService;
 import akin.city_card.user.service.concretes.PhoneNumberFormatter;
+import akin.city_card.user.service.concretes.UserManager;
 import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import akin.city_card.verification.model.VerificationChannel;
 import akin.city_card.verification.model.VerificationCode;
@@ -38,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +69,10 @@ public class AuthManager implements AuthService {
     private final AdminRepository adminRepository;
     private final SuperAdminRepository superAdminRepository;
     private final LoginHistoryRepository loginHistoryRepository;
+    private final UserManager userManager;
+    private final FCMService fcmService;
+    private final MailService mailService;
+    private final GeoIpService  geoIpService;
 
     @Override
     @Transactional
@@ -257,7 +274,7 @@ public class AuthManager implements AuthService {
             throws NotFoundUserException, UserDeletedException, UserNotActiveException,
             IncorrectPasswordException, UserRoleNotAssignedException, PhoneNotVerifiedException,
             UnrecognizedDeviceException, AdminNotApprovedException, UserNotFoundException,
-            VerificationCodeStillValidException, VerificationCooldownException {
+            VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException {
 
         String normalizedPhone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(loginRequestDTO.getTelephone());
         loginRequestDTO.setTelephone(normalizedPhone);
@@ -265,11 +282,11 @@ public class AuthManager implements AuthService {
         SecurityUser securityUser = securityUserRepository.findByUserNumber(normalizedPhone)
                 .orElseThrow(NotFoundUserException::new);
 
+        if (securityUser.getStatus() == UserStatus.FROZEN) throw new AccountFrozenException();
         if (securityUser.isDeleted()) throw new UserDeletedException();
         if (!securityUser.getStatus().equals(UserStatus.ACTIVE)) throw new UserNotActiveException();
-        if (!passwordEncoder.matches(loginRequestDTO.getPassword(), securityUser.getPassword())) {
-            throw new IncorrectPasswordException();
-        }
+        if (!passwordEncoder.matches(loginRequestDTO.getPassword(), securityUser.getPassword())) throw new IncorrectPasswordException();
+
 
         if (securityUser.getRoles() == null || securityUser.getRoles().isEmpty()) {
             throw new UserRoleNotAssignedException();
@@ -312,6 +329,99 @@ public class AuthManager implements AuthService {
 
         throw new NotFoundUserException();
     }
+
+    @Override
+    @Transactional
+    public ResponseMessage unfreezeAccount( UnfreezeAccountRequest request, HttpServletRequest httpRequest)
+            throws AccountNotFrozenException, UserNotFoundException, IncorrectPasswordException {
+
+        User user = userRepository.findByUserNumber(request.getTelephone())
+                .orElseThrow(UserNotFoundException::new);
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new IncorrectPasswordException();
+
+
+        if (user.getStatus() != UserStatus.FROZEN) {
+            throw new AccountNotFrozenException();
+        }
+
+        user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+
+
+
+       userManager.updateDeviceInfoAndCreateAuditLog(
+                user,
+                httpRequest,
+                geoIpService,
+                ActionType.UNFREEZE_ACCOUNT,
+                "Kullanıcı hesabını yeniden aktif hale getirdi.",
+                null,
+                null
+        );
+
+        String notificationTitle = "Hesap Aktifleştirildi";
+        String notificationMessage = "Hesabınız başarıyla yeniden aktifleştirildi.";
+
+        NotificationPreferences prefs = user.getNotificationPreferences();
+
+        if (prefs != null) {
+            // Push bildirimi
+            if (prefs.isPushEnabled()) {
+                fcmService.sendNotificationToToken(
+                        user,
+                        notificationTitle,
+                        notificationMessage,
+                        NotificationType.SUCCESS,
+                        null
+                );
+            }
+
+            // SMS bildirimi
+            if (prefs.isSmsEnabled()) {
+                String phone = user.getUserNumber();
+                if (phone != null && !phone.isBlank()) {
+                 /*
+                    SmsRequest smsRequest = new SmsRequest();
+                    smsRequest.setTo(phone);
+                    smsRequest.setMessage("City Card: " + notificationMessage);
+                    smsService.sendSms(smsRequest);
+
+                  */
+                }
+            }
+        }
+
+        // E-posta bildirimi
+        if (user.getProfileInfo() != null && user.getProfileInfo().getEmail() != null) {
+            EmailMessage message = new EmailMessage();
+            message.setToEmail(user.getProfileInfo().getEmail());
+            message.setSubject("Hesap Aktifleştirme Bilgilendirmesi");
+
+            String body = """
+                        <html>
+                            <body style="font-family: Arial, sans-serif; color: #333;">
+                                <h2>Sayın %s,</h2>
+                                <p>Talebiniz üzerine <strong>%s</strong> tarihinde hesabınız başarıyla yeniden aktifleştirilmiştir.</p>
+                                <p>Hizmetlerimizi kullandığınız için teşekkür ederiz. Herhangi bir sorunuz olursa bizimle iletişime geçebilirsiniz.</p>
+                                <br>
+                                <p>Saygılarımızla,</p>
+                                <p><strong>Destek Ekibi</strong></p>
+                            </body>
+                        </html>
+                    """.formatted(
+                    user.getProfileInfo().getName() + " " + user.getProfileInfo().getSurname(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+            );
+
+            message.setBody(body);
+            message.setHtml(true);
+            mailService.queueEmail(message);
+        }
+
+        return new ResponseMessage("Hesabınız yeniden aktifleştirildi.", true);
+    }
+
 
     private String extractClientIp(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");

@@ -7,6 +7,8 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.dto.*;
 import akin.city_card.security.exception.*;
 import akin.city_card.security.manager.AuthService;
+import akin.city_card.user.core.request.UnfreezeAccountRequest;
+import akin.city_card.user.exceptions.AccountNotFrozenException;
 import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +28,7 @@ public class AuthController {
 
 
     @PostMapping("/login")
-    public TokenResponseDTO login(HttpServletRequest httpServletRequest,@RequestBody LoginRequestDTO loginRequestDTO) throws UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, NotFoundUserException, IncorrectPasswordException, UnrecognizedDeviceException, PhoneNotVerifiedException, AdminNotApprovedException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
+    public TokenResponseDTO login(HttpServletRequest httpServletRequest,@RequestBody LoginRequestDTO loginRequestDTO) throws UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, NotFoundUserException, IncorrectPasswordException, UnrecognizedDeviceException, PhoneNotVerifiedException, AdminNotApprovedException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException {
         return authService.login(loginRequestDTO,httpServletRequest);
     }
 
@@ -57,6 +59,14 @@ public class AuthController {
     @PostMapping("/refresh-login")
     public TokenDTO refreshLogin(HttpServletRequest httpServletRequest,@RequestBody RefreshLoginRequest request) throws UserNotFoundException, InvalidRefreshTokenException, IncorrectPasswordException, TokenIsExpiredException, TokenNotFoundException {
         return authService.refreshLogin( httpServletRequest,  request);
+    }
+
+    @PostMapping("/unfreeze-account")
+    public ResponseMessage unfreezeAccount(
+            @RequestBody UnfreezeAccountRequest request,
+            HttpServletRequest httpRequest
+    ) throws UserNotFoundException, AccountNotFrozenException, IncorrectPasswordException {
+        return authService.unfreezeAccount( request, httpRequest);
     }
 
     @GetMapping("/logout")

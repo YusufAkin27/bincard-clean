@@ -9,8 +9,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UnfreezeAccountRequest {
+    @NotBlank(message = "Telefon boş olamaz")
+    private String telephone;
+
     @NotBlank(message = "Şifre boş olamaz")
     private String password;
-    
+
     private String note;
 }

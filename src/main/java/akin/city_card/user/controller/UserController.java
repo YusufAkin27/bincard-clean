@@ -146,14 +146,6 @@ public class UserController {
         return userService.freezeAccount(userDetails.getUsername(), request, httpRequest);
     }
 
-    @PostMapping("/unfreeze-account")
-    public ResponseMessage unfreezeAccount(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody UnfreezeAccountRequest request,
-            HttpServletRequest httpRequest
-    ) throws UserNotFoundException, AccountNotFrozenException {
-        return userService.unfreezeAccount(userDetails.getUsername(), request, httpRequest);
-    }
 
     @PatchMapping("/update-fcm-token")
     public boolean updateFCMToken(@RequestParam String fcmToken, @AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException {

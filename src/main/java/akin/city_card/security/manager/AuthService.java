@@ -8,13 +8,15 @@ import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.response.ResponseMessage;
 import akin.city_card.security.dto.*;
 import akin.city_card.security.exception.*;
+import akin.city_card.user.core.request.UnfreezeAccountRequest;
+import akin.city_card.user.exceptions.AccountNotFrozenException;
 import akin.city_card.verification.exceptions.VerificationCodeExpiredException;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface AuthService {
 
 
-    TokenResponseDTO login(LoginRequestDTO loginRequestDTO, HttpServletRequest request) throws NotFoundUserException, IncorrectPasswordException, UserDeletedException, UserNotActiveException, UserRoleNotAssignedException, PhoneNotVerifiedException, UnrecognizedDeviceException, AdminNotApprovedException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
+    TokenResponseDTO login(LoginRequestDTO loginRequestDTO, HttpServletRequest request) throws NotFoundUserException, IncorrectPasswordException, UserDeletedException, UserNotActiveException, UserRoleNotAssignedException, PhoneNotVerifiedException, UnrecognizedDeviceException, AdminNotApprovedException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException;
 
     TokenDTO updateAccessToken(UpdateAccessTokenRequestDTO updateAccessTokenRequestDTO,HttpServletRequest httpServletRequest) throws TokenIsExpiredException, TokenNotFoundException, UserNotFoundException, InvalidRefreshTokenException;
 
@@ -29,4 +31,7 @@ public interface AuthService {
     TokenDTO refreshLogin(HttpServletRequest request, RefreshLoginRequest refreshRequest) throws TokenIsExpiredException, TokenNotFoundException, InvalidRefreshTokenException, UserNotFoundException, IncorrectPasswordException;
 
     ResponseMessage resendVerifyCode(String telephone) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
+
+
+    ResponseMessage unfreezeAccount(UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws AccountNotFrozenException, UserNotFoundException, IncorrectPasswordException;
 }

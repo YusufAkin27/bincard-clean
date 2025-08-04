@@ -92,7 +92,6 @@ public interface UserService {
 
     ResponseMessage freezeAccount(String username, FreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException;
 
-    ResponseMessage unfreezeAccount(String username, UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws UserNotFoundException, AccountNotFrozenException;
 
 
     PageDTO<CacheUserDTO> getAllUsers(Pageable pageable);
