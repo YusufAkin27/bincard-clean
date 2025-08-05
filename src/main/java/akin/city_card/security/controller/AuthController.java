@@ -33,12 +33,12 @@ public class AuthController {
     }
 
     @PostMapping("/admin-login")
-    public ResponseMessage adminLogin(HttpServletRequest request, @RequestBody LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, AdminNotFoundException, AdminNotApprovedException, NotFoundUserException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
+    public ResponseMessage adminLogin(HttpServletRequest request, @RequestBody LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, AdminNotFoundException, AdminNotApprovedException, NotFoundUserException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException {
         return authService.adminLogin(loginRequestDTO,request);
     }
 
     @PostMapping("/superadmin-login")
-    public ResponseMessage superadminLogin(HttpServletRequest request ,@RequestBody LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, SuperAdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
+    public ResponseMessage superadminLogin(HttpServletRequest request ,@RequestBody LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserNotActiveException, UserRoleNotAssignedException, UserDeletedException, SuperAdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException {
         return authService.superadminLogin(request,loginRequestDTO);
     }
 
@@ -52,8 +52,8 @@ public class AuthController {
         return authService.updateAccessToken(updateAccessTokenRequestDTO,httpServletRequest);
     }
     @PostMapping("/resend-verify-code")
-    public ResponseMessage resendVerifyCode(@RequestParam String telephone) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
-        return authService.resendVerifyCode(telephone);
+    public ResponseMessage resendVerifyCode(HttpServletRequest httpServletRequest,@RequestParam String telephone) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
+        return authService.resendVerifyCode(telephone,httpServletRequest);
     }
 
     @PostMapping("/refresh-login")
@@ -70,14 +70,14 @@ public class AuthController {
     }
 
     @GetMapping("/logout")
-    public ResponseEntity<ResponseMessage> logout(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<ResponseMessage> logout(HttpServletRequest httpServletRequest,@AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ResponseMessage("Kullanıcı doğrulanamadı", false));
         }
         try {
             System.out.printf(userDetails.getUsername());
-            ResponseMessage response = authService.logout(userDetails.getUsername());
+            ResponseMessage response = authService.logout(userDetails.getUsername(),httpServletRequest);
             return ResponseEntity.ok(response);
         } catch (UserNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

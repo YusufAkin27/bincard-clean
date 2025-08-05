@@ -1150,7 +1150,7 @@ public class UserManager implements UserService {
 
         user.setDeleted(true);
         user.setStatus(UserStatus.DELETED);
-        tokenRepository.deleteBySecurityUserId(user.getId());
+        tokenRepository.deleteAllTokensByUser(user);
         userRepository.save(user);
 
 

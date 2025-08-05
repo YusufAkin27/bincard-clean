@@ -1,7 +1,7 @@
 package akin.city_card.security.exception;
 
 public class AccountFrozenException extends BusinessException {
-    public AccountFrozenException( ) {
-        super("Hesabınız dondurulmuş. Aktifleştirmek ister misiniz?");
+    public AccountFrozenException(long remainingMinutes) {
+        super("Hesap kilitli. " + remainingMinutes + " dakika sonra tekrar deneyin.");
     }
 }

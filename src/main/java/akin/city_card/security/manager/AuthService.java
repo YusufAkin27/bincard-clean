@@ -20,17 +20,17 @@ public interface AuthService {
 
     TokenDTO updateAccessToken(UpdateAccessTokenRequestDTO updateAccessTokenRequestDTO,HttpServletRequest httpServletRequest) throws TokenIsExpiredException, TokenNotFoundException, UserNotFoundException, InvalidRefreshTokenException;
 
-    ResponseMessage logout(String username) throws UserNotFoundException, TokenNotFoundException;
+    ResponseMessage logout(String username, HttpServletRequest httpServletRequest) throws UserNotFoundException, TokenNotFoundException;
 
     TokenResponseDTO phoneVerify(LoginPhoneVerifyCodeRequest phoneVerifyCode,HttpServletRequest httpServletRequest) throws VerificationCodeExpiredException, InvalidVerificationCodeException, UsedVerificationCodeException, CancelledVerificationCodeException;
 
-    ResponseMessage adminLogin(LoginRequestDTO loginRequestDTO, HttpServletRequest request) throws NotFoundUserException, IncorrectPasswordException, UserRoleNotAssignedException, UserDeletedException, AdminNotApprovedException, UserNotActiveException, AdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
+    ResponseMessage adminLogin(LoginRequestDTO loginRequestDTO, HttpServletRequest request) throws NotFoundUserException, IncorrectPasswordException, UserRoleNotAssignedException, UserDeletedException, AdminNotApprovedException, UserNotActiveException, AdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException;
 
-    ResponseMessage superadminLogin(HttpServletRequest request, LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserRoleNotAssignedException, UserNotActiveException, UserDeletedException, SuperAdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
+    ResponseMessage superadminLogin(HttpServletRequest request, LoginRequestDTO loginRequestDTO) throws IncorrectPasswordException, UserRoleNotAssignedException, UserNotActiveException, UserDeletedException, SuperAdminNotFoundException, UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException, AccountFrozenException;
 
     TokenDTO refreshLogin(HttpServletRequest request, RefreshLoginRequest refreshRequest) throws TokenIsExpiredException, TokenNotFoundException, InvalidRefreshTokenException, UserNotFoundException, IncorrectPasswordException;
 
-    ResponseMessage resendVerifyCode(String telephone) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
+    ResponseMessage resendVerifyCode(String telephone, HttpServletRequest httpServletRequest) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException;
 
 
     ResponseMessage unfreezeAccount(UnfreezeAccountRequest request, HttpServletRequest httpRequest) throws AccountNotFrozenException, UserNotFoundException, IncorrectPasswordException;
