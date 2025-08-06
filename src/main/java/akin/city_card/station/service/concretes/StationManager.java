@@ -138,15 +138,16 @@ public class StationManager implements StationService {
     }
 
     @Override
-    public DataResponseMessage<PageDTO<StationDTO>> getAllStations(double latitude, double longitude, StationType type, int page, int size) {
+    public DataResponseMessage<PageDTO<StationDTO>> getAllStations(Double latitude, Double longitude, StationType type, int page, int size) {
         List<Station> stations = stationRepository.findAll()
                 .stream()
                 .filter(s -> !s.isDeleted() && s.isActive())
                 .filter(type != null ? s -> s.getType().equals(type) : s -> true)
-                .sorted((s1, s2) -> Double.compare(
-                        distance(latitude, longitude, s1.getLocation().getLatitude(), s1.getLocation().getLongitude()),
-                        distance(latitude, longitude, s2.getLocation().getLatitude(), s2.getLocation().getLongitude())
-                ))
+                .sorted((latitude != null && longitude != null)
+                        ? Comparator.comparingDouble(s -> distance(latitude, longitude,
+                        s.getLocation().getLatitude(), s.getLocation().getLongitude()))
+                        : Comparator.comparing(Station::getId) // alternatif sıralama
+                )
                 .toList();
 
         int totalElements = stations.size();

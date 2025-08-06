@@ -1,6 +1,6 @@
 package akin.city_card.security.config;
 
-import akin.city_card.contract.service.abstacts.MandatoryContractInterceptor;
+import akin.city_card.contract.interceptor.MandatoryContractInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;

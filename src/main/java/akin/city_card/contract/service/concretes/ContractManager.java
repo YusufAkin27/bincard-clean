@@ -39,7 +39,6 @@ public class ContractManager implements ContractService {
 
     private final ContractRepository contractRepository;
     private final UserContractAcceptanceRepository acceptanceRepository;
-    private final UserRepository userRepository;
     private final SecurityUserRepository securityUserRepository;
     private final ContractConverter contractConverter;
 
@@ -205,7 +204,7 @@ public class ContractManager implements ContractService {
     // Kullanıcı İşlemleri
     @Override
     public List<UserContractDTO> getUserContracts(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         List<Contract> activeContracts = contractRepository.findByActiveOrderByCreatedAtDesc(true);
@@ -225,7 +224,7 @@ public class ContractManager implements ContractService {
 
     @Override
     public List<UserContractDTO> getMandatoryContractsForUser(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         List<Contract> mandatoryContracts = contractRepository.findByMandatoryAndActiveOrderByCreatedAtDesc(true, true);
@@ -254,7 +253,7 @@ public class ContractManager implements ContractService {
     @Transactional
     public ResponseMessage acceptContract(String username, Long contractId, AcceptContractRequest request) {
         try {
-            User user = userRepository.findByUserNumber(username)
+            SecurityUser user = securityUserRepository.findByUserNumber(username)
                     .orElseThrow(UserNotFoundException::new);
 
             Contract contract = contractRepository.findById(contractId)
@@ -296,7 +295,7 @@ public class ContractManager implements ContractService {
     @Transactional
     public ResponseMessage rejectContract(String username, Long contractId, RejectContractRequest request) {
         try {
-            User user = userRepository.findByUserNumber(username)
+            SecurityUser user = securityUserRepository.findByUserNumber(username)
                     .orElseThrow(UserNotFoundException::new);
 
             Contract contract = contractRepository.findById(contractId)
@@ -329,7 +328,7 @@ public class ContractManager implements ContractService {
 
     @Override
     public List<AcceptedContractDTO> getAcceptedContracts(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         return acceptanceRepository.findByUserAndAcceptedOrderByAcceptedAtDesc(user, true)
@@ -390,7 +389,7 @@ public class ContractManager implements ContractService {
     // Kontrol İşlemleri
     @Override
     public boolean hasUserAcceptedContract(String username, Long contractId) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         Contract contract = contractRepository.findById(contractId)
@@ -401,7 +400,7 @@ public class ContractManager implements ContractService {
 
     @Override
     public boolean hasUserAcceptedAllMandatoryContracts(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         List<Contract> mandatoryContracts = contractRepository.findByMandatoryAndActive(true, true);
@@ -417,7 +416,7 @@ public class ContractManager implements ContractService {
 
     @Override
     public List<Contract> getUnacceptedMandatoryContracts(String username) throws UserNotFoundException {
-        User user = userRepository.findByUserNumber(username)
+        SecurityUser user = securityUserRepository.findByUserNumber(username)
                 .orElseThrow(UserNotFoundException::new);
 
         List<Contract> mandatoryContracts = contractRepository.findByMandatoryAndActive(true, true);

@@ -1,6 +1,7 @@
 package akin.city_card.security.entity;
 
 import akin.city_card.admin.model.AuditLog;
+import akin.city_card.contract.model.UserContractAcceptance;
 import akin.city_card.location.model.Location;
 import akin.city_card.user.model.DeviceHistory;
 import akin.city_card.user.model.LoginHistory;
@@ -100,6 +101,11 @@ public class SecurityUser implements UserDetails {
 
     @JsonIgnore
     private LocalDateTime lastLocationUpdatedAt;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("acceptedAt DESC")
+    @JsonIgnore
+    private List<UserContractAcceptance> contractAcceptances = new ArrayList<>();
 
 
     public SecurityUser(String userNumber, Set<Role> roles) {

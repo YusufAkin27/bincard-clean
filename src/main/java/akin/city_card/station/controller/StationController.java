@@ -32,7 +32,6 @@ import java.util.Set;
 public class StationController {
 
     private final StationService stationService;
-    private final GoogleMapsService googleMapsService;
 
     @PostMapping
     public DataResponseMessage<StationDTO> createStation(@AuthenticationPrincipal UserDetails userDetails, @RequestBody CreateStationRequest request) throws AdminNotFoundException, UnauthorizedAreaException {
@@ -65,8 +64,8 @@ public class StationController {
 
     @GetMapping
     public DataResponseMessage<PageDTO<StationDTO>> getAllStations(
-            @RequestParam double latitude,
-            @RequestParam double longitude,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
             @RequestParam(required = false) StationType type,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size

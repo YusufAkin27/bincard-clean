@@ -161,7 +161,7 @@ public class AuthManager implements AuthService {
             if (phoneVerifyCode.getLongitude() != null) metadata.setLongitude(phoneVerifyCode.getLongitude());
 
             // Her kullanıcı türü için tek oturum politikası - mevcut tüm oturumları kapat
-            revokePreviousSessions(user, "New login verification completed",httpServletRequest);
+            revokePreviousSessions(user, "New login verification completed", httpServletRequest);
 
             // Cihaz ve IP kontrolü
             if (user instanceof User userEntity) {
@@ -257,7 +257,7 @@ public class AuthManager implements AuthService {
             adminRepository.save(admin);
 
             // Admin için HER ZAMAN SMS doğrulaması gönder
-            sendLoginVerificationCode(admin.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(),request);
+            sendLoginVerificationCode(admin.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(), request);
 
             auditService.logSecurityEvent(SecurityEventType.ADMIN_LOGIN, normalizedPhone, request,
                     "Admin login verification code sent");
@@ -324,7 +324,7 @@ public class AuthManager implements AuthService {
             superAdminRepository.save(superAdmin);
 
             // SuperAdmin için HER ZAMAN SMS doğrulaması gönder
-            sendLoginVerificationCode(superAdmin.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(),request);
+            sendLoginVerificationCode(superAdmin.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(), request);
 
             auditService.logSecurityEvent(SecurityEventType.SUPERADMIN_LOGIN, normalizedPhone, request,
                     "SuperAdmin login verification code sent");
@@ -391,16 +391,18 @@ public class AuthManager implements AuthService {
     }
 
     @Override
-    public ResponseMessage resendVerifyCode(String telephone,HttpServletRequest request) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
+    public ResponseMessage resendVerifyCode(String telephone, HttpServletRequest request) throws UserNotFoundException, VerificationCodeStillValidException, VerificationCooldownException {
         telephone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(telephone);
         SecurityUser user = securityUserRepository.findByUserNumber(telephone).orElseThrow(UserNotFoundException::new);
-        sendLoginVerificationCode(telephone, user.getCurrentDeviceInfo().getIpAddress(), null,request);
+        sendLoginVerificationCode(telephone, user.getCurrentDeviceInfo().getIpAddress(), null, request);
 
         auditService.logSecurityEvent(SecurityEventType.VERIFICATION_CODE_RESENT, telephone, request, "Verification code resent");
 
 
         return new ResponseMessage("yeni doğrulama kodu gönderildi", true);
     }
+
+    // AuthManager.java içindeki login metodunda düzeltme
 
     @Override
     @Transactional
@@ -424,6 +426,7 @@ public class AuthManager implements AuthService {
 
             loginRequestDTO.setTelephone(normalizedPhone);
 
+            // SADECE MEVCUT KULLANICILARI BUL - YENİ OLUŞTURMA!
             SecurityUser securityUser = securityUserRepository.findByUserNumber(normalizedPhone)
                     .orElseThrow(() -> {
                         bruteForceService.recordFailedLogin(normalizedPhone, clientIp, request.getHeader("User-Agent"));
@@ -431,6 +434,7 @@ public class AuthManager implements AuthService {
                         return new NotFoundUserException();
                     });
 
+            // Mevcut validasyonlar...
             if (securityUser.getStatus() == UserStatus.FROZEN) {
                 auditService.logLoginFailure(normalizedPhone, request, "Account frozen");
                 throw new AccountFrozenException(remainingMinutes);
@@ -466,7 +470,7 @@ public class AuthManager implements AuthService {
                 LoginMetadataDTO metadata = extractClientMetadata(request);
 
                 if (!user.isPhoneVerified()) {
-                    sendLoginVerificationCode(user.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(),request);
+                    sendLoginVerificationCode(user.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(), request);
                     auditService.logSecurityEvent(SecurityEventType.LOGIN_FAILED, normalizedPhone, request,
                             "Phone not verified - verification code sent");
                     throw new PhoneNotVerifiedException();
@@ -477,17 +481,12 @@ public class AuthManager implements AuthService {
                 boolean isNewIp = isNewIp(user, metadata.getIpAddress());
 
                 if (isNewDevice || isNewIp) {
-                    // Yeni cihaz veya IP için SMS doğrulama gönder
-                    sendLoginVerificationCode(user.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(),request);
-
+                    sendLoginVerificationCode(user.getUserNumber(), metadata.getIpAddress(), metadata.getDeviceInfo(), request);
                     String logMessage = String.format("New device/IP detected - New Device: %s, New IP: %s - SMS verification required",
                             isNewDevice, isNewIp);
-
                     auditService.logSecurityEvent(SecurityEventType.NEW_DEVICE_LOGIN, normalizedPhone, request, logMessage);
-
                     logger.info("New device/IP login attempt for user: {} - New Device: {}, New IP: {} - SMS sent",
                             normalizedPhone, isNewDevice, isNewIp);
-
                     throw new UnrecognizedDeviceException();
                 }
 
@@ -500,8 +499,9 @@ public class AuthManager implements AuthService {
                         metadata.getDeviceInfo()
                 );
 
+                // MEVCUT KULLANICIYI GÜNCELLE - YENİ OLUŞTURMA!
                 applyLoginMetadataToUser(user, metadata);
-                securityUserRepository.save(user);
+                securityUserRepository.save(user); // Bu save işlemi update olacak, insert değil
 
                 // Brute force protection - başarılı giriş
                 bruteForceService.recordSuccessfulLogin(normalizedPhone);
@@ -727,6 +727,8 @@ public class AuthManager implements AuthService {
                 .build();
     }
 
+// AuthManager.java içindeki applyLoginMetadataToUser metodunun düzeltilmesi
+
     public void applyLoginMetadataToUser(SecurityUser user, LoginMetadataDTO metadata) {
         LoginHistory history = LoginHistory.builder()
                 .loginAt(LocalDateTime.now())
@@ -747,16 +749,28 @@ public class AuthManager implements AuthService {
 
             history.setLocation(location);
             user.setLastKnownLocation(location);
+
+            if (user.getLocationHistory() == null) {
+                user.setLocationHistory(new ArrayList<>());
+            }
             user.getLocationHistory().add(location);
         }
 
-        DeviceInfo updatedDeviceInfo = DeviceInfo.builder()
-                .ipAddress(metadata.getIpAddress())
-                .fcmToken(metadata.getFcmToken())
-                .build();
-        user.setCurrentDeviceInfo(updatedDeviceInfo);
+        if (user.getCurrentDeviceInfo() == null) {
+            user.setCurrentDeviceInfo(new DeviceInfo());
+        }
+
+        user.getCurrentDeviceInfo().setIpAddress(metadata.getIpAddress());
+        user.getCurrentDeviceInfo().setFcmToken(metadata.getFcmToken());
+
+        user.getCurrentDeviceInfo().setDeviceType(metadata.getDeviceInfo());
+        user.getCurrentDeviceInfo().setUserAgent(metadata.getDeviceInfo());
 
         user.setLastLocationUpdatedAt(LocalDateTime.now());
+
+        if (user.getLoginHistory() == null) {
+            user.setLoginHistory(new ArrayList<>());
+        }
         user.getLoginHistory().add(history);
     }
 
@@ -844,9 +858,7 @@ public class AuthManager implements AuthService {
     }
 
 
-
-
-    private void sendLoginVerificationCode(String telephone, String ipAddress, String userAgent,HttpServletRequest request)
+    private void sendLoginVerificationCode(String telephone, String ipAddress, String userAgent, HttpServletRequest request)
             throws UserNotFoundException, VerificationCooldownException, VerificationCodeStillValidException {
 
         SecurityUser user = securityUserRepository.findByUserNumber(telephone)

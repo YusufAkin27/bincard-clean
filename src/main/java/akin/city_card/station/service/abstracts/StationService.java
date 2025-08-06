@@ -31,7 +31,7 @@ public interface StationService {
 
     ResponseMessage deleteStation(Long id, String username);
 
-    DataResponseMessage<PageDTO<StationDTO>> getAllStations(double v1, double v2, StationType type, int page, int size);
+    DataResponseMessage<PageDTO<StationDTO>> getAllStations(Double v1, Double v2, StationType type, int page, int size);
 
     DataResponseMessage<StationDetailsDTO> getStationById(Long id, DirectionType directionType);
 

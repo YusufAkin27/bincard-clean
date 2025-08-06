@@ -127,10 +127,6 @@ public class User extends SecurityUser {
     @JsonIgnore
     private List<Notification> notifications = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<UserContractAcceptance> contractAcceptances = new ArrayList<>();
-
 
 
 }
