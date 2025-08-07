@@ -1,5 +1,8 @@
 package akin.city_card.initializer;
 
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.response.UserContractDTO;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.Role;
 import akin.city_card.superadmin.model.SuperAdmin;
@@ -18,6 +21,7 @@ public class SuperAdminInitializer implements CommandLineRunner {
 
     private final SuperAdminRepository superAdminRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContractService contractService;
 
     @Override
     public void run(String... args) {
@@ -30,7 +34,6 @@ public class SuperAdminInitializer implements CommandLineRunner {
             return;
         }
 
-        // Yeni profil bilgisi oluştur
         ProfileInfo profileInfo = ProfileInfo.builder()
                 .name("Super")
                 .surname("Admin")
@@ -50,6 +53,25 @@ public class SuperAdminInitializer implements CommandLineRunner {
         superAdminRepository.save(superAdmin);
 
         System.out.println("🚀 SuperAdmin başarıyla oluşturuldu → " + defaultPhone + " / " + defaultPassword);
+
+        // Zorunlu sözleşmeleri kabul ettir
+        try {
+            var contracts = contractService.getMandatoryContractsForUser(superAdmin.getUserNumber());
+
+            for (UserContractDTO contract : contracts) {
+                AcceptContractRequest request = new AcceptContractRequest();
+                request.setAccepted(true);
+                request.setIpAddress("127.0.0.1");
+                request.setUserAgent("SuperAdminInitializer/1.0");
+                request.setContractVersion(contract.getVersion());
+
+                contractService.acceptContract(superAdmin.getUserNumber(), contract.getId(), request);
+            }
+
+            System.out.println("📄 SuperAdmin için tüm zorunlu sözleşmeler kabul edildi.");
+        } catch (Exception e) {
+            System.err.println("❌ SuperAdmin sözleşme kabul hatası: " + e.getMessage());
+        }
     }
 
 }

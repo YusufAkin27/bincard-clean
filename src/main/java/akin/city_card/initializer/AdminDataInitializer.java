@@ -2,6 +2,11 @@ package akin.city_card.initializer;
 
 import akin.city_card.admin.model.Admin;
 import akin.city_card.admin.repository.AdminRepository;
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.response.ContractDTO;
+import akin.city_card.contract.core.response.UserContractDTO;
+import akin.city_card.contract.repository.ContractRepository;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.Role;
@@ -23,26 +28,57 @@ public class AdminDataInitializer implements ApplicationRunner {
 
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContractService contractService;
+    private final ContractRepository contractRepository;
     private static final Random random = new Random();
 
     @Override
     public void run(ApplicationArguments args) {
-        if (adminRepository.count() == 0) {
-            List<Admin> admins = IntStream.range(1, 11)
-                    .mapToObj(this::generateAdmin)
-                    .toList();
+        List<Admin> adminsToSave = IntStream.range(1, 11)
+                .mapToObj(this::generateAdmin)
+                .filter(admin -> adminRepository.findByUserNumber(admin.getUserNumber()) == null)
+                .toList();
 
-            adminRepository.saveAll(admins);
-            System.out.println(">> 10 adet admin eklendi.");
+        if (!adminsToSave.isEmpty()) {
+            adminRepository.saveAll(adminsToSave);
+            System.out.println(">> " + adminsToSave.size() + " yeni admin eklendi.");
+
+            for (Admin admin : adminsToSave) {
+                try {
+                    List<UserContractDTO> mandatoryContracts = contractService.getMandatoryContractsForUser(admin.getUserNumber());
+
+                    for (UserContractDTO contract : mandatoryContracts) {
+                        AcceptContractRequest request = new AcceptContractRequest();
+                        request.setAccepted(true);
+                        request.setIpAddress(admin.getCurrentDeviceInfo().getIpAddress());
+                        request.setUserAgent("AdminDataInitializer/1.0");
+                        request.setContractVersion(contract.getVersion());
+
+                        contractService.acceptContract(admin.getUserNumber(), contract.getId(), request);
+                    }
+                } catch (Exception e) {
+                    System.err.println(">> Admin " + admin.getUserNumber() + " için sözleşme kabul hatası: " + e.getMessage());
+                }
+            }
+        } else {
+            System.out.println("✅ Zaten tüm adminler veritabanında mevcut. Yeni kayıt yapılmadı.");
         }
     }
 
+
+
     private Admin generateAdmin(int i) {
-        String phoneNumber = generatePhoneNumber(i); // +905330000011, +905330000012, ...
+        String phoneNumber = generatePhoneNumber(i); // Örn: +905333000011
+
+        // Zaten bu kullanıcı numarasıyla bir admin varsa tekrar oluşturma
+        if (adminRepository.findByUserNumber(phoneNumber) != null) {
+            System.out.println("⚠️ Admin zaten var: " + phoneNumber);
+            return null;
+        }
 
         return Admin.builder()
                 .userNumber(phoneNumber)
-                .password(passwordEncoder.encode("123456")) // Gerçek uygulamada hashlenmeli
+                .password(passwordEncoder.encode("123456"))
                 .roles(Set.of(Role.ADMIN))
                 .status(UserStatus.ACTIVE)
                 .isDeleted(false)
@@ -64,7 +100,7 @@ public class AdminDataInitializer implements ApplicationRunner {
     }
 
     private String generatePhoneNumber(int i) {
-        return String.format("+905333%06d", 10 + i); // +905330000011, +905330000012, ...
+        return String.format("+905333%06d", 20 + i); // +905330000011, +905330000012, ...
     }
 
 }

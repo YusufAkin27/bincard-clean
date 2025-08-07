@@ -1,5 +1,9 @@
 package akin.city_card.initializer;
 
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.response.UserContractDTO;
+import akin.city_card.contract.repository.ContractRepository;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.driver.model.Driver;
 
 import akin.city_card.driver.model.Shift;
@@ -28,13 +32,37 @@ public class DriverDataInitializer implements ApplicationRunner {
 
     private final DriverRepository driverRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ContractService contractService;
 
     @Override
     public void run(ApplicationArguments args) {
         if (driverRepository.count() == 0) {
-            List<Driver> drivers = IntStream.range(0, 100).mapToObj(this::createDriver).toList();
+            List<Driver> drivers = IntStream.range(0, 100)
+                    .mapToObj(this::createDriver)
+                    .toList();
+
             driverRepository.saveAll(drivers);
             System.out.println(">> 100 sürücü eklendi.");
+
+            // Sözleşmeleri kabul ettir
+            for (Driver driver : drivers) {
+                try {
+                    List<UserContractDTO> mandatoryContracts = contractService.getMandatoryContractsForUser(driver.getUserNumber());
+
+                    for (UserContractDTO contract : mandatoryContracts) {
+                        AcceptContractRequest request = new AcceptContractRequest();
+                        request.setAccepted(true);
+                        request.setIpAddress(driver.getCurrentDeviceInfo().getIpAddress());
+                        request.setUserAgent("DriverDataInitializer/1.0");
+                        request.setContractVersion(contract.getVersion());
+
+                        contractService.acceptContract(driver.getUserNumber(), contract.getId(), request);
+                    }
+
+                } catch (Exception e) {
+                    System.err.println(">> Sürücü " + driver.getUserNumber() + " için sözleşme kabul hatası: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -66,9 +94,10 @@ public class DriverDataInitializer implements ApplicationRunner {
     }
 
     private String generateNationalId(int i) {
-        return String.format("12345678%03d", i); // 12345678001 → 11 karakter
+        return String.format("12345678%03d", i);
     }
+
     private String generatePhoneNumber(int i) {
-        return String.format("+905332%06d", 10 + i); // +905330000011, +905330000012, ...
+        return String.format("+905332%06d", 10 + i);
     }
 }

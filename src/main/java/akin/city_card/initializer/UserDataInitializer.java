@@ -1,9 +1,8 @@
 package akin.city_card.initializer;
 
-import akin.city_card.news.model.News;
-import akin.city_card.news.model.NewsType;
-import akin.city_card.news.model.PlatformType;
-import akin.city_card.news.repository.NewsRepository;
+import akin.city_card.contract.core.request.AcceptContractRequest;
+import akin.city_card.contract.core.response.UserContractDTO;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.security.entity.DeviceInfo;
 import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.Role;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -31,11 +29,39 @@ import java.util.stream.IntStream;
 public class UserDataInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
-private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
+    private final ContractService contractService;
 
     @Override
     public void run(ApplicationArguments args) {
-        createRandomUsers();
+        if (userRepository.count() == 0) {
+            List<User> users = IntStream.range(1, 11)
+                    .mapToObj(this::generateRandomUser)
+                    .toList();
+
+            userRepository.saveAll(users);
+            System.out.println(">> 10 adet örnek kullanıcı eklendi.");
+
+            // Zorunlu sözleşmeleri kabul ettir
+            for (User user : users) {
+                try {
+                    List<UserContractDTO> mandatoryContracts = contractService.getMandatoryContractsForUser(user.getUserNumber());
+
+                    for (UserContractDTO contract : mandatoryContracts) {
+                        AcceptContractRequest request = new AcceptContractRequest();
+                        request.setAccepted(true);
+                        request.setIpAddress(user.getCurrentDeviceInfo().getIpAddress());
+                        request.setUserAgent("UserDataInitializer/1.0");
+                        request.setContractVersion(contract.getVersion());
+
+                        contractService.acceptContract(user.getUserNumber(), contract.getId(), request);
+                    }
+
+                } catch (Exception e) {
+                    System.err.println(">> Kullanıcı " + user.getUserNumber() + " için sözleşme kabul hatası: " + e.getMessage());
+                }
+            }
+        }
     }
 
     private void createRandomUsers() {
@@ -90,6 +116,7 @@ private final PasswordEncoder passwordEncoder;
 
         return user;
     }
+
     private String generateNationalId(int i) {
         return String.format("12345678%03d", i); // 11 haneli örnek
     }
@@ -99,7 +126,6 @@ private final PasswordEncoder passwordEncoder;
         // i = 1 → +905330000001, i = 2 → +905330000002, ...
         return String.format("+905331%06d", i);
     }
-
 
 
 }

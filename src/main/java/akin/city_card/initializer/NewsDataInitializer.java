@@ -31,7 +31,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Bu teknoloji sayesinde öğrenciler artık kişisel öğrenme deneyimi yaşayabiliyor.
                             Eğitimdeki bu devrim, özellikle uzaktan eğitimde verimliliği %70'e kadar artırdı.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/32682886/pexels-photo-32682886.jpeg?_gl=1*11hf5b*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTUzMjAkajUkbDAkaDA.",
                             NewsType.GUNCELLEME, NewsPriority.ORTA_YUKSEK
                     ),
                     createNews(
@@ -41,7 +41,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Yeni hat, şehir içi ulaşımı önemli ölçüde rahatlatacak ve her gün 500 bin kişiyi taşıyacak kapasitede olacak.
                             Açılışa Ulaştırma Bakanı da katıldı.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/29024422/pexels-photo-29024422.jpeg?_gl=1*1d2woxi*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTUzNDckajU4JGwwJGgw",
                             NewsType.ETKINLIK, NewsPriority.ORTA_YUKSEK
                     ),
                     createNews(
@@ -51,7 +51,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Gezegenin su barındırma ihtimali oldukça yüksek.
                             Uzay ajansları bu keşfi, 'ikinci Dünya' olarak tanımlıyor.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/31036772/pexels-photo-31036772.jpeg?_gl=1*1nqqbus*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTUzNzQkajMxJGwwJGgw",
                             NewsType.BAKIM, NewsPriority.KRITIK
                     ),
                     createNews(
@@ -61,7 +61,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Sokak modasında ise rahatlık ve şıklık bir arada sunuluyor.
                             Ünlü markalar yeni koleksiyonlarını tanıttı.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/33314024/pexels-photo-33314024.jpeg?_gl=1*1mqc0cn*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTUxODAkajM4JGwwJGgw",
                             NewsType.BASIN_BULTENI, NewsPriority.DUSUK
                     ),
                     createNews(
@@ -71,7 +71,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Yoğurt, kefir ve kombucha gibi ürünlere ilgi her geçen gün artıyor.
                             Uzmanlar, bu gıdaların haftalık diyetlere mutlaka eklenmesini öneriyor.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://videos.pexels.com/video-files/33045211/14084440_1440_2040_25fps.mp4",
                             NewsType.KESINTI, NewsPriority.NORMAL
                     ),
                     createNews(
@@ -81,7 +81,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             yapay zeka projesinde yer almaya hak kazandı. Proje kapsamında otonom araçların
                             veri işleme teknolojileri geliştirilecek.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/32125166/pexels-photo-32125166.jpeg?_gl=1*5goalr*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTUyNzAkajU1JGwwJGgw",
                             NewsType.BAKIM, NewsPriority.NORMAL
                     ),
                     createNews(
@@ -91,7 +91,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Konserler, oyunlar, stantlar ve yarışmalarla öğrencileri dolu dolu bir etkinlik bekliyor.
                             Katılım tüm öğrencilere açık ve ücretsizdir.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://videos.pexels.com/video-files/14993440/14993440-uhd_1440_2162_60fps.mp4",
                             NewsType.DUYURU, NewsPriority.KRITIK
                     ),
                     createNews(
@@ -100,7 +100,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             TÜBİTAK destekli ekip, deprem ve sel gibi afetlerde erken müdahale sağlayacak bir uyarı sistemi geliştirdi.
                             Bu sistem, afet gerçekleşmeden önce 30 saniyelik erken bildirim sağlayabiliyor.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/17131046/pexels-photo-17131046.jpeg?_gl=1*j96usl*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTU0NjUkajkkbDAkaDA.",
                             NewsType.BAKIM, NewsPriority.YUKSEK
                     ),
                     createNews(
@@ -109,7 +109,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             Üniversite yönetimi, ihtiyaç sahibi öğrenciler için 12 ay sürecek yeni bir burs programı başlattı.
                             Başvurular öğrenci işleri sayfasından yapılabilecek.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/33217919/pexels-photo-33217919.jpeg?_gl=1*1xsmqkg*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTU0ODEkajU4JGwwJGgw",
                             NewsType.BILGILENDIRME, NewsPriority.COK_DUSUK
                     ),
                     createNews(
@@ -119,7 +119,7 @@ public class NewsDataInitializer implements ApplicationRunner {
                             arasında veri bilimi, yapay zeka mühendisliği ve siber güvenlik uzmanlığı yer alıyor.
                             Gençler bu alanlara yönlendiriliyor.
                             """,
-                            "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFwbbxooBaJGvbBD9IdldV4OnrVDopNIkyxAP07P1Drbfa-vA19O1MIRiJhFEW1JrirkY&usqp=CAU",
+                            "https://images.pexels.com/photos/33202250/pexels-photo-33202250.jpeg?_gl=1*1hl96xw*_ga*MTY4OTU4ODQyNC4xNzU0NDY5NDM4*_ga_8JE65Q40S6*czE3NTQ1NTUxNTgkbzIkZzEkdDE3NTQ1NTU1MDAkajM5JGwwJGgw",
                             NewsType.BASIN_BULTENI, NewsPriority.YUKSEK
                     )
             );
