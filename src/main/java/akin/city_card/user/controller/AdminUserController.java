@@ -17,17 +17,15 @@ import akin.city_card.user.exceptions.InvalidPhoneNumberFormatException;
 import akin.city_card.user.exceptions.PhoneNumberAlreadyExistsException;
 import akin.city_card.user.exceptions.PhoneNumberRequiredException;
 import akin.city_card.user.model.*;
-import akin.city_card.user.service.abstracts.UserService;
+import akin.city_card.user.service.abstracts.AdminUserService;
 import akin.city_card.wallet.exceptions.AdminOrSuperAdminNotFoundException;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Cache;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -44,7 +42,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AdminUserController {
 
-    private final UserService userService;
+    private final AdminUserService adminUserService;
 
     private void isAdminOrSuperAdmin(UserDetails userDetails) throws UnauthorizedAccessException {
         if (userDetails == null || userDetails.getAuthorities() == null) {
@@ -71,7 +69,7 @@ public class AdminUserController {
             @AuthenticationPrincipal UserDetails userDetails,
             Pageable pageable) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
-        return userService.getAllUsers(pageable);
+        return adminUserService.getAllUsers(pageable);
     }
 
     /**
@@ -86,7 +84,7 @@ public class AdminUserController {
 
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.searchUsers(query, pageable);
+        return adminUserService.searchUsers(query, pageable);
     }
 
 
@@ -102,7 +100,7 @@ public class AdminUserController {
         List<Long> userIds = (List<Long>) request.get("userIds");
         UserStatus newStatus = UserStatus.valueOf((String) request.get("status"));
 
-        return userService.bulkUpdateUserStatus(userIds, newStatus, userDetails.getUsername());
+        return adminUserService.bulkUpdateUserStatus(userIds, newStatus, userDetails.getUsername());
 
     }
 
@@ -115,7 +113,7 @@ public class AdminUserController {
             @RequestBody List<Long> userIds) throws UnauthorizedAccessException, AdminOrSuperAdminNotFoundException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.bulkDeleteUsers(userIds, userDetails.getUsername());
+        return adminUserService.bulkDeleteUsers(userIds, userDetails.getUsername());
     }
 
     // =============== 2. KULLANICI DETAYLARI ===============
@@ -129,7 +127,7 @@ public class AdminUserController {
             @PathVariable Long userId) throws UnauthorizedAccessException, UserNotFoundException, AdminOrSuperAdminNotFoundException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserById(userId,userDetails.getUsername());
+        return adminUserService.getUserById(userId,userDetails.getUsername());
     }
 
     /**
@@ -141,7 +139,7 @@ public class AdminUserController {
             @PathVariable Long userId) throws UnauthorizedAccessException, UserNotFoundException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserDeviceInfo(userId,userDetails.getUsername());
+        return adminUserService.getUserDeviceInfo(userId,userDetails.getUsername());
 
     }
 
@@ -157,7 +155,7 @@ public class AdminUserController {
             @RequestBody Set<Role> roles) throws UnauthorizedAccessException, AdminOrSuperAdminNotFoundException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.assignRolesToUser(userId, roles, userDetails.getUsername());
+        return adminUserService.assignRolesToUser(userId, roles, userDetails.getUsername());
 
     }
 
@@ -171,7 +169,7 @@ public class AdminUserController {
             @RequestBody Set<Role> roles) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-       return userService.removeRolesFromUser(userId, roles, userDetails.getUsername());
+       return adminUserService.removeRolesFromUser(userId, roles, userDetails.getUsername());
 
     }
 
@@ -187,7 +185,7 @@ public class AdminUserController {
         List<Long> userIds = (List<Long>) request.get("userIds");
         Set<Role> roles = Set.of(Role.valueOf((String) request.get("role")));
 
-        return  userService.bulkAssignRoles(userIds, roles, userDetails.getUsername());
+        return  adminUserService.bulkAssignRoles(userIds, roles, userDetails.getUsername());
 
     }
 
@@ -206,7 +204,7 @@ public class AdminUserController {
         String newPassword = request.get("newPassword");
         boolean forceChange = Boolean.parseBoolean(request.getOrDefault("forceChange", "true"));
 
-     return userService.resetUserPassword(userId, newPassword, forceChange, userDetails.getUsername());
+     return adminUserService.resetUserPassword(userId, newPassword, forceChange, userDetails.getUsername());
 
     }
 
@@ -222,7 +220,7 @@ public class AdminUserController {
         isAdminOrSuperAdmin(userDetails);
 
         boolean verified = request.get("verified");
-        return userService.updateEmailVerificationStatus(userId, verified, userDetails.getUsername());
+        return adminUserService.updateEmailVerificationStatus(userId, verified, userDetails.getUsername());
 
     }
 
@@ -237,7 +235,7 @@ public class AdminUserController {
         isAdminOrSuperAdmin(userDetails);
 
         boolean verified = request.get("verified");
-        return userService.updatePhoneVerificationStatus(userId, verified, userDetails.getUsername());
+        return adminUserService.updatePhoneVerificationStatus(userId, verified, userDetails.getUsername());
 
     }
 
@@ -252,7 +250,7 @@ public class AdminUserController {
             @PathVariable Long userId) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserActiveSessions(userId);
+        return adminUserService.getUserActiveSessions(userId);
     }
 
     /**
@@ -265,7 +263,7 @@ public class AdminUserController {
             @PathVariable String sessionId) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.terminateUserSession(userId, sessionId, userDetails.getUsername());
+        return adminUserService.terminateUserSession(userId, sessionId, userDetails.getUsername());
     }
 
 
@@ -283,7 +281,7 @@ public class AdminUserController {
         LocalDateTime expiresAt = request.containsKey("expiresAt") ?
                 LocalDateTime.parse((String) request.get("expiresAt")) : null;
 
-        return userService.banIpAddress(ipAddress, reason, expiresAt, userDetails.getUsername());
+        return adminUserService.banIpAddress(ipAddress, reason, expiresAt, userDetails.getUsername());
     }
 
     // Kullanıcıyı askıya alma
@@ -294,7 +292,7 @@ public class AdminUserController {
             @RequestBody SuspendUserRequest request,
             @AuthenticationPrincipal UserDetails adminDetails
     ) throws UserNotFoundException, UnauthorizedAreaException {
-        return userService.suspendUser(adminDetails.getUsername(), userId, request);
+        return adminUserService.suspendUser(adminDetails.getUsername(), userId, request);
     }
 
     // Kullanıcı hesabını kalıcı olarak silme
@@ -305,7 +303,7 @@ public class AdminUserController {
             @RequestBody PermanentDeleteRequest request,
             @AuthenticationPrincipal UserDetails adminDetails
     ) throws UserNotFoundException, UnauthorizedAreaException {
-        return userService.permanentlyDeleteUser(adminDetails.getUsername(), userId, request);
+        return adminUserService.permanentlyDeleteUser(adminDetails.getUsername(), userId, request);
     }
 
     // Kullanıcı askıya alma işlemini kaldırma
@@ -316,7 +314,7 @@ public class AdminUserController {
             @RequestBody UnsuspendUserRequest request,
             @AuthenticationPrincipal UserDetails adminDetails
     ) throws UserNotFoundException, UnauthorizedAreaException {
-        return userService.unsuspendUser(adminDetails.getUsername(), userId, request);
+        return adminUserService.unsuspendUser(adminDetails.getUsername(), userId, request);
     }
     /**
      * Cihaz engelleme
@@ -331,7 +329,7 @@ public class AdminUserController {
         String deviceId = (String) request.get("deviceId");
         String reason = (String) request.get("reason");
 
-       return userService.banUserDevice(userId, deviceId, reason, userDetails.getUsername());
+       return adminUserService.banUserDevice(userId, deviceId, reason, userDetails.getUsername());
 
     }
 
@@ -349,7 +347,7 @@ public class AdminUserController {
             Pageable pageable) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getSuspiciousActivities(
+        return adminUserService.getSuspiciousActivities(
                 startDate, endDate, activityType, pageable);
 
     }
@@ -367,7 +365,7 @@ public class AdminUserController {
             Pageable pageable) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserAuditLogs(
+        return adminUserService.getUserAuditLogs(
                 userId, startDate, endDate, action, pageable);
     }
 
@@ -381,7 +379,7 @@ public class AdminUserController {
             @AuthenticationPrincipal UserDetails userDetails) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserStatistics();
+        return adminUserService.getUserStatistics();
     }
 
     /**
@@ -396,7 +394,7 @@ public class AdminUserController {
             Pageable pageable) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserLoginHistory(userId, startDate, endDate, pageable);
+        return adminUserService.getUserLoginHistory(userId, startDate, endDate, pageable);
     }
 
     /**
@@ -411,7 +409,7 @@ public class AdminUserController {
             Pageable pageable) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserSearchHistory(userId, startDate, endDate, pageable);
+        return adminUserService.getUserSearchHistory(userId, startDate, endDate, pageable);
     }
 
     // =============== 10. BİLDİRİM VE İLETİŞİM ===============
@@ -430,7 +428,7 @@ public class AdminUserController {
         String message = (String) notificationData.get("message");
         String type = (String) notificationData.get("type");
 
-        return userService.sendNotificationToUser(userId, title, message, type, userDetails.getUsername());
+        return adminUserService.sendNotificationToUser(userId, title, message, type, userDetails.getUsername());
     }
 
     /**
@@ -447,7 +445,7 @@ public class AdminUserController {
         String message = (String) notificationData.get("message");
         String type = (String) notificationData.get("type");
 
-        return userService.sendBulkNotification(userIds, title, message, type, userDetails.getUsername());
+        return adminUserService.sendBulkNotification(userIds, title, message, type, userDetails.getUsername());
     }
 
     // =============== 11. EKSTRA ÖZELLİKLER ===============
@@ -465,7 +463,7 @@ public class AdminUserController {
         String emailAddress = request.get("emailAddress");
         String language = request.getOrDefault("language", "tr");
 
-        return userService.exportUserDataToPdf(userId, emailAddress, language, userDetails.getUsername());
+        return adminUserService.exportUserDataToPdf(userId, emailAddress, language, userDetails.getUsername());
     }
 
     /**
@@ -480,7 +478,7 @@ public class AdminUserController {
             HttpServletResponse response) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        userService.exportUsersToExcel(userIds, status, role, response, userDetails.getUsername());
+        adminUserService.exportUsersToExcel(userIds, status, role, response, userDetails.getUsername());
     }
 
 
@@ -495,7 +493,7 @@ public class AdminUserController {
             @RequestParam(required = false, defaultValue = "30") int days) throws UnauthorizedAccessException {
         isAdminOrSuperAdmin(userDetails);
 
-        return userService.getUserBehaviorAnalysis(userId, days);
+        return adminUserService.getUserBehaviorAnalysis(userId, days);
     }
 
     // =============== MEVCUT METOD (KORUNDU) ===============
@@ -505,6 +503,6 @@ public class AdminUserController {
                                                   @Valid @RequestBody CreateUserRequestList createUserRequestList,
                                                   HttpServletRequest httpServletRequest) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException, UnauthorizedAccessException, AdminOrSuperAdminNotFoundException {
         isAdminOrSuperAdmin(userDetails);
-        return userService.createAll(userDetails.getUsername(), createUserRequestList.getUsers(), httpServletRequest);
+        return adminUserService.createAll(userDetails.getUsername(), createUserRequestList.getUsers(), httpServletRequest);
     }
 }

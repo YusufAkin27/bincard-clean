@@ -79,14 +79,13 @@ public class AdminManager implements AdminService {
                 .currentDeviceInfo(deviceInfo)
                 .profileInfo(profileInfo)
                 .userNumber(normalizedPhone)
-                .superAdminApproved(false)   // Süper admin onayı bekleniyor
+                .superAdminApproved(false)
                 .isDeleted(false)
                 .status(UserStatus.ACTIVE)
-                .phoneVerified(true)         // Telefon doğrulama durumu
-                .emailVerified(false)        // E-posta doğrulama durumu
+                .phoneVerified(true)
+                .emailVerified(false)
                 .build();
 
-        // Admin kaydet
         adminRepository.save(admin);
 
         String ipAddress = extractClientIp(httpServletRequest);

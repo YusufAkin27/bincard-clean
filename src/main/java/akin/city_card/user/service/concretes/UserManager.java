@@ -44,6 +44,7 @@ import akin.city_card.user.core.response.SearchHistoryDTO;
 import akin.city_card.user.core.response.Views;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.user.model.*;
+import akin.city_card.user.repository.LoginHistoryRepository;
 import akin.city_card.user.repository.PasswordResetTokenRepository;
 import akin.city_card.user.repository.UserRepository;
 import akin.city_card.user.service.abstracts.UserService;
@@ -74,6 +75,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -96,6 +98,7 @@ public class UserManager implements UserService {
     private final FCMService fcmService;
     private final GeoIpService geoIpService;
     private final ContractService contractService;
+    private final LoginHistoryRepository loginHistoryRepository;
     private final TokenRepository tokenRepository;
 
 
@@ -520,34 +523,7 @@ public class UserManager implements UserService {
     }
 
 
-    @Override
-    @Transactional
-    public List<ResponseMessage> createAll(String username, List<CreateUserRequest> createUserRequests, HttpServletRequest httpServletRequest) throws PhoneNumberRequiredException, InvalidPhoneNumberFormatException, PhoneNumberAlreadyExistsException, VerificationCodeStillValidException, AdminOrSuperAdminNotFoundException {
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
 
-        List<ResponseMessage> responseMessages = new ArrayList<>();
-        for (CreateUserRequest createUserRequest : createUserRequests) {
-            responseMessages.add(create(createUserRequest, httpServletRequest));
-        }
-
-        if (securityUser.getCurrentDeviceInfo() == null) {
-            securityUser.setCurrentDeviceInfo(new DeviceInfo());
-        }
-
-
-        updateDeviceInfoAndCreateAuditLog(
-                securityUser,
-                httpServletRequest,
-                geoIpService,
-                ActionType.BULK_USER_CREATED,
-                createUserRequests.size() + " adet kullanıcı topluca eklendi.",
-                null,
-                null
-        );
-
-
-        return responseMessages;
-    }
 
 
     @Override
@@ -1301,198 +1277,6 @@ public class UserManager implements UserService {
         return new ResponseMessage("Hesabınız başarıyla geçici olarak donduruldu.", true);
     }
 
-
-
-    @Override
-    public PageDTO<CacheUserDTO> getAllUsers(Pageable pageable) {
-        Page<User> userPage = userRepository.findAll(pageable); // pageable içeriyor
-        return new PageDTO<>(userPage.map(userConverter::toCacheUserDTO));
-    }
-
-    @Override
-    public PageDTO<CacheUserDTO> searchUsers(String query, Pageable pageable) {
-        Specification<User> spec = (root, cq, cb) -> cb.conjunction();
-
-        if (query != null && !query.isBlank()) {
-            String likeQuery = "%" + query.toLowerCase() + "%";
-
-            spec = spec.and((root, cq, cb) -> {
-                var rolesJoin = root.joinSet("roles", JoinType.LEFT);
-
-                return cb.or(
-                        cb.like(cb.lower(root.get("name")), likeQuery),
-                        cb.like(cb.lower(root.get("surname")), likeQuery),
-                        cb.like(cb.lower(root.get("email")), likeQuery),
-                        cb.like(cb.lower(root.get("phone")), likeQuery),
-                        cb.like(cb.lower(root.get("userNumber")), likeQuery),
-                        cb.like(cb.lower(root.get("status").as(String.class)), likeQuery),
-                        cb.like(cb.lower(rolesJoin.get("name").as(String.class)), likeQuery),
-                        cb.like(cb.lower(root.get("emailVerified").as(String.class)), likeQuery),
-                        cb.like(cb.lower(root.get("phoneVerified").as(String.class)), likeQuery)
-                );
-            });
-        }
-
-        Page<User> userPage = userRepository.findAll(spec, pageable);
-        return new PageDTO<>(userPage.map(userConverter::toCacheUserDTO));
-    }
-
-    @Override
-    @Transactional
-    public ResponseMessage bulkUpdateUserStatus(List<Long> userIds, UserStatus newStatus, String username) throws AdminOrSuperAdminNotFoundException {
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
-
-        List<User> users = userRepository.findAllById(userIds);
-        for (User user : users) {
-            user.setStatus(newStatus);
-        }
-        return new ResponseMessage("kullanıcıların durumları değiştirildi.", true);
-    }
-
-    @Override
-    public ResponseMessage bulkDeleteUsers(List<Long> userIds, String username) throws AdminOrSuperAdminNotFoundException {
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
-
-        List<User> users = userRepository.findAllById(userIds);
-        for (User user : users) {
-            user.setStatus(UserStatus.DELETED);
-        }
-        return new ResponseMessage("Kullanıcılar silindi.", true);
-
-    }
-
-    @Override
-    public CacheUserDTO getUserById(Long userId, String username) throws UserNotFoundException, AdminOrSuperAdminNotFoundException {
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
-
-        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
-        return userConverter.toCacheUserDTO(user);
-    }
-
-    @Override
-    public Map<String, Object> getUserDeviceInfo(Long userId, String username) throws UserNotFoundException {
-        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
-        List<DeviceHistory>deviceHistories=user.getDeviceHistory();
-
-        return Map.of();
-    }
-
-    @Override
-    public ResponseMessage assignRolesToUser(Long userId, Set<Role> roles, String username) throws AdminOrSuperAdminNotFoundException {
-        SecurityUser securityUser = securityUserRepository.findByUserNumber(username).orElseThrow(AdminOrSuperAdminNotFoundException::new);
-
-        return null;
-    }
-
-    @Override
-    public ResponseMessage removeRolesFromUser(Long userId, Set<Role> roles, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage bulkAssignRoles(List<Long> userIds, Set<Role> roles, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage resetUserPassword(Long userId, String newPassword, boolean forceChange, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage updateEmailVerificationStatus(Long userId, boolean verified, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage updatePhoneVerificationStatus(Long userId, boolean verified, String username) {
-        return null;
-    }
-
-    @Override
-    public List<Map<String, Object>> getUserActiveSessions(Long userId) {
-        return List.of();
-    }
-
-    @Override
-    public ResponseMessage terminateUserSession(Long userId, String sessionId, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage banIpAddress(String ipAddress, String reason, LocalDateTime expiresAt, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage suspendUser(String username, Long userId, SuspendUserRequest request) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage permanentlyDeleteUser(String username, Long userId, PermanentDeleteRequest request) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage unsuspendUser(String username, Long userId, UnsuspendUserRequest request) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage banUserDevice(Long userId, String deviceId, String reason, String username) {
-        return null;
-    }
-
-    @Override
-    public Page<Map<String, Object>> getSuspiciousActivities(String startDate, String endDate, String activityType, Pageable pageable) {
-        return null;
-    }
-
-    @Override
-    public Page<Map<String, Object>> getUserAuditLogs(Long userId, String startDate, String endDate, String action, Pageable pageable) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> getUserStatistics() {
-        return Map.of();
-    }
-
-    @Override
-    public Page<LoginHistory> getUserLoginHistory(Long userId, String startDate, String endDate, Pageable pageable) {
-        return null;
-    }
-
-    @Override
-    public Page<SearchHistory> getUserSearchHistory(Long userId, String startDate, String endDate, Pageable pageable) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage sendNotificationToUser(Long userId, String title, String message, String type, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage sendBulkNotification(List<Long> userIds, String title, String message, String type, String username) {
-        return null;
-    }
-
-    @Override
-    public ResponseMessage exportUserDataToPdf(Long userId, String emailAddress, String language, String username) {
-        return null;
-    }
-
-    @Override
-    public void exportUsersToExcel(List<Long> userIds, UserStatus status, Role role, HttpServletResponse response, String username) {
-
-    }
-
-    @Override
-    public Map<String, Object> getUserBehaviorAnalysis(Long userId, int days) {
-        return Map.of();
-    }
 
 
     public String randomSixDigit() {
