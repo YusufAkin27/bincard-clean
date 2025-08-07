@@ -30,8 +30,7 @@ public class AdminDataInitializer implements ApplicationRunner {
     private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final ContractService contractService;
-    private final ContractRepository contractRepository;
-    private static final Random random = new Random();
+
 
     @Override
     public void run(ApplicationArguments args) {
