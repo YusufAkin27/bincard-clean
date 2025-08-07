@@ -46,4 +46,5 @@ public interface UserRepository extends JpaRepository<User, Long> , JpaSpecifica
     long countByStatus(UserStatus status);
 
 
+    boolean existsByUserNumber(String telephone);
 }

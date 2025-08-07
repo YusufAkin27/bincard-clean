@@ -50,6 +50,7 @@ public class AdminManager implements AdminService {
     private final AdminApprovalRequestRepository adminApprovalRequestRepository;
     private final AuditLogRepository auditLogRepository;
     private final ContractService contractService;
+
     @Override
     @Transactional
     public ResponseMessage signUp(CreateAdminRequest adminRequest, HttpServletRequest httpServletRequest) throws PhoneIsNotValidException, PhoneNumberAlreadyExistsException {
@@ -59,14 +60,12 @@ public class AdminManager implements AdminService {
 
         String normalizedPhone = PhoneNumberFormatter.normalizeTurkishPhoneNumber(adminRequest.getTelephone());
         adminRequest.setTelephone(normalizedPhone);
-        if (securityUserRepository.existsByUserNumber(adminRequest.getTelephone())){
+        if (securityUserRepository.existsByUserNumber(adminRequest.getTelephone())) {
             throw new PhoneNumberAlreadyExistsException();
         }
 
-        DeviceInfo deviceInfo = DeviceInfo.builder()
-                .ipAddress(adminRequest.getIpAddress())
-                .fcmToken(adminRequest.getFcmToken()) // Eğer varsa
-                .build();
+        DeviceInfo deviceInfo = new DeviceInfo();
+
 
         ProfileInfo profileInfo = ProfileInfo.builder()
                 .name(adminRequest.getName())
@@ -89,7 +88,7 @@ public class AdminManager implements AdminService {
 
         // Admin kaydet
         adminRepository.save(admin);
-        
+
         String ipAddress = extractClientIp(httpServletRequest);
         String userAgent = httpServletRequest.getHeader("User-Agent");
 
@@ -113,7 +112,6 @@ public class AdminManager implements AdminService {
                 null,                   // amount yok
                 "{\"platform\":\"web\"}" // metadata örneği (opsiyonel)
         );
-
 
 
         // Admin onay talebi oluştur ve kaydet
@@ -240,7 +238,6 @@ public class AdminManager implements AdminService {
     }
 
 
-
     @Override
     public ResponseMessage updateDeviceInfo(UpdateDeviceInfoRequest request, String username) throws AdminNotFoundException {
         Admin admin = findByUserNumber(username);
@@ -325,8 +322,6 @@ public class AdminManager implements AdminService {
 
         return new DataResponseMessage<>("Giriş geçmişi başarıyla getirildi.", true, responseList);
     }
-
-
 
 
 }
