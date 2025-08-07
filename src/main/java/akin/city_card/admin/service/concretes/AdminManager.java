@@ -10,6 +10,7 @@ import akin.city_card.admin.repository.AdminApprovalRequestRepository;
 import akin.city_card.admin.repository.AdminRepository;
 import akin.city_card.admin.repository.AuditLogRepository;
 import akin.city_card.admin.service.abstracts.AdminService;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.location.core.response.LocationDTO;
 import akin.city_card.location.exceptions.NoLocationFoundException;
 import akin.city_card.location.model.Location;
@@ -27,8 +28,10 @@ import akin.city_card.user.model.LoginHistory;
 import akin.city_card.user.model.UserStatus;
 import akin.city_card.user.repository.LoginHistoryRepository;
 import akin.city_card.user.service.concretes.PhoneNumberFormatter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +41,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminManager implements AdminService {
     private final SecurityUserRepository securityUserRepository;
     private final PasswordEncoder passwordEncoder;
@@ -45,9 +49,10 @@ public class AdminManager implements AdminService {
     private final LoginHistoryRepository loginHistoryRepository;
     private final AdminApprovalRequestRepository adminApprovalRequestRepository;
     private final AuditLogRepository auditLogRepository;
+    private final ContractService contractService;
     @Override
     @Transactional
-    public ResponseMessage signUp(CreateAdminRequest adminRequest) throws PhoneIsNotValidException, PhoneNumberAlreadyExistsException {
+    public ResponseMessage signUp(CreateAdminRequest adminRequest, HttpServletRequest httpServletRequest) throws PhoneIsNotValidException, PhoneNumberAlreadyExistsException {
         if (!PhoneNumberFormatter.PhoneValid(adminRequest.getTelephone())) {
             throw new PhoneIsNotValidException();
         }
@@ -84,6 +89,17 @@ public class AdminManager implements AdminService {
 
         // Admin kaydet
         adminRepository.save(admin);
+        
+        String ipAddress = extractClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
+
+        try {
+            contractService.autoAcceptMandatoryContracts(admin, ipAddress, userAgent);
+            log.info("Zorunlu sözleşmeler otomatik kabul edildi - Kullanıcı: {}", admin.getUsername());
+        } catch (Exception e) {
+            log.error("Zorunlu sözleşmeler otomatik kabul edilirken hata - Kullanıcı: {}", admin.getUsername(), e);
+            // Sözleşme kabul hatası kullanıcı kaydını engellemez, sadece log'lanır
+        }
 
         // Admin kayıt olduğunda logla
 
@@ -111,6 +127,21 @@ public class AdminManager implements AdminService {
 
         return new ResponseMessage("Kayıt başarılı. Super admin onayı bekleniyor.", true);
     }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp.trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
     public void createAuditLog(SecurityUser user,
                                ActionType action,
                                String description,

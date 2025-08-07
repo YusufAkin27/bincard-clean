@@ -3,7 +3,6 @@ package akin.city_card.admin.service.abstracts;
 import akin.city_card.admin.core.request.CreateAdminRequest;
 import akin.city_card.admin.core.request.UpdateDeviceInfoRequest;
 import akin.city_card.admin.core.request.UpdateLocationRequest;
-import akin.city_card.admin.core.response.AuditLogDTO;
 import akin.city_card.admin.core.response.LoginHistoryDTO;
 import akin.city_card.admin.exceptions.AdminNotFoundException;
 import akin.city_card.location.core.response.LocationDTO;
@@ -13,12 +12,13 @@ import akin.city_card.user.core.request.ChangePasswordRequest;
 import akin.city_card.user.core.request.UpdateProfileRequest;
 import akin.city_card.user.exceptions.*;
 import akin.city_card.response.ResponseMessage;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import java.util.List;
 
 public interface AdminService {
-    ResponseMessage signUp(@Valid CreateAdminRequest adminRequest) throws PhoneIsNotValidException, PhoneNumberAlreadyExistsException;
+    ResponseMessage signUp(@Valid CreateAdminRequest adminRequest, HttpServletRequest httpServletRequest) throws PhoneIsNotValidException, PhoneNumberAlreadyExistsException;
 
 
     ResponseMessage changePassword(@Valid ChangePasswordRequest request, String username) throws AdminNotFoundException, PasswordTooShortException, PasswordSameAsOldException, IncorrectCurrentPasswordException;

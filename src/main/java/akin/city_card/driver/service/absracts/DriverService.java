@@ -11,6 +11,7 @@ import akin.city_card.driver.exceptions.*;
 import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.security.exception.UserNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
@@ -19,7 +20,7 @@ import java.util.List;
 public interface DriverService {
     DataResponseMessage<DriverPerformanceDto> getDriverPerformance(Long id, String username) throws DriverNotFoundException;
 
-    DataResponseMessage<DriverDto> createDriver(CreateDriverRequest request, String username) throws UserNotFoundException, DriverAlreadyExistsException;
+    DataResponseMessage<DriverDto> createDriver(CreateDriverRequest request, String username, HttpServletRequest httpServletRequest) throws UserNotFoundException, DriverAlreadyExistsException;
 
     DataResponseMessage<DriverDto> updateDriver(Long id, UpdateDriverRequest dto, String username) throws UserNotFoundException, DriverNotFoundException;
 

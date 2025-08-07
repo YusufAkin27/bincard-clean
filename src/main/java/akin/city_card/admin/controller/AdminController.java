@@ -14,6 +14,7 @@ import akin.city_card.response.ResponseMessage;
 import akin.city_card.user.core.request.ChangePasswordRequest;
 import akin.city_card.user.core.request.UpdateProfileRequest;
 import akin.city_card.user.exceptions.*;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,10 +32,11 @@ public class AdminController {
 
     // 1. Kullanıcı kayıt
     @PostMapping("/sign-up")
-    public ResponseMessage signUp(@Valid @RequestBody CreateAdminRequest adminRequest)
+    public ResponseMessage signUp(@Valid @RequestBody CreateAdminRequest adminRequest,
+                                  HttpServletRequest httpServletRequest)
             throws  PhoneNumberAlreadyExistsException,
              PhoneIsNotValidException {
-        return adminService.signUp(adminRequest);
+        return adminService.signUp(adminRequest,httpServletRequest);
     }
 
     // 3. Güvenlik & Hesap Ayarları

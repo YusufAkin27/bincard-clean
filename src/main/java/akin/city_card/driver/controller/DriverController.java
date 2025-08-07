@@ -12,6 +12,7 @@ import akin.city_card.driver.service.absracts.DriverService;
 import akin.city_card.news.core.response.PageDTO;
 import akin.city_card.response.DataResponseMessage;
 import akin.city_card.security.exception.UserNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,8 +33,9 @@ public class DriverController {
 
     @PostMapping
     public DataResponseMessage<DriverDto> createDriver(@RequestBody CreateDriverRequest request,
-                                                       @AuthenticationPrincipal UserDetails userDetails) throws UserNotFoundException, DriverAlreadyExistsException {
-        return driverService.createDriver(request, userDetails.getUsername());
+                                                       @AuthenticationPrincipal UserDetails userDetails,
+                                                       HttpServletRequest httpServletRequest) throws UserNotFoundException, DriverAlreadyExistsException {
+        return driverService.createDriver(request, userDetails.getUsername(),httpServletRequest);
     }
 
     @PutMapping("/{id}")

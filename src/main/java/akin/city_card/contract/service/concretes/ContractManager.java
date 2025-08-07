@@ -346,7 +346,7 @@ public class ContractManager implements ContractService {
     // Otomatik sözleşme kabul etme methodu - Kayıt sırasında kullanılacak
     @Override
     @Transactional
-    public void autoAcceptMandatoryContracts(User user, String ipAddress, String userAgent) {
+    public void autoAcceptMandatoryContracts(SecurityUser user, String ipAddress, String userAgent) {
         List<ContractType> mandatoryTypes = List.of(
                 ContractType.UYELIK_SOZLESMESI,
                 ContractType.AYDINLATMA_METNI,

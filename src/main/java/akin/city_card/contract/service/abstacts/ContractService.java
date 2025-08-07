@@ -10,6 +10,7 @@ import akin.city_card.contract.core.response.UserContractDTO;
 import akin.city_card.contract.model.Contract;
 import akin.city_card.contract.model.ContractType;
 import akin.city_card.response.ResponseMessage;
+import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.user.model.User;
 
@@ -45,7 +46,7 @@ public interface ContractService {
     List<AcceptedContractDTO> getUserAcceptedContracts(String username) throws UserNotFoundException;
 
     // Otomatik Kabul İşlemleri
-    void autoAcceptMandatoryContracts(User user, String ipAddress, String userAgent);
+    void autoAcceptMandatoryContracts(SecurityUser user, String ipAddress, String userAgent);
 
     // Kontrol İşlemleri
     boolean hasUserAcceptedContract(String username, Long contractId) throws UserNotFoundException;

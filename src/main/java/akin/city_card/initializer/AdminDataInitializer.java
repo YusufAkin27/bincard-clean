@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -36,7 +37,7 @@ public class AdminDataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         List<Admin> adminsToSave = IntStream.range(1, 11)
                 .mapToObj(this::generateAdmin)
-                .filter(admin -> adminRepository.findByUserNumber(admin.getUserNumber()) == null)
+                .filter(Objects::nonNull) // null olanları çıkar
                 .toList();
 
         if (!adminsToSave.isEmpty()) {
@@ -64,6 +65,7 @@ public class AdminDataInitializer implements ApplicationRunner {
             System.out.println("✅ Zaten tüm adminler veritabanında mevcut. Yeni kayıt yapılmadı.");
         }
     }
+
 
 
 

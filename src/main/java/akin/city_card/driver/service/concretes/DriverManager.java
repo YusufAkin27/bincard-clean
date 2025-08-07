@@ -1,6 +1,7 @@
 package akin.city_card.driver.service.concretes;
 
 import akin.city_card.bus.exceptions.DriverNotFoundException;
+import akin.city_card.contract.service.abstacts.ContractService;
 import akin.city_card.driver.core.converter.DriverConverter;
 import akin.city_card.driver.core.request.CreateDriverRequest;
 import akin.city_card.driver.core.request.UpdateDriverRequest;
@@ -23,6 +24,7 @@ import akin.city_card.security.entity.ProfileInfo;
 import akin.city_card.security.entity.SecurityUser;
 import akin.city_card.security.exception.UserNotFoundException;
 import akin.city_card.security.repository.SecurityUserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -38,7 +40,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,6 +52,7 @@ public class DriverManager implements DriverService {
     private final DriverPenaltyRepository driverPenaltyRepository;
     private final SecurityUserRepository securityUserRepository;
     private final DriverConverter driverConverter;
+    private final ContractService contractService;
 
     // Helper method to find user by username
     private SecurityUser findUserByUsername(String username) throws UserNotFoundException {
@@ -66,7 +68,7 @@ public class DriverManager implements DriverService {
 
 
     @Override
-    public DataResponseMessage<DriverDto> createDriver(CreateDriverRequest request, String username) throws UserNotFoundException, DriverAlreadyExistsException {
+    public DataResponseMessage<DriverDto> createDriver(CreateDriverRequest request, String username, HttpServletRequest httpServletRequest) throws UserNotFoundException, DriverAlreadyExistsException {
         log.info("Creating new driver by user: {}", username);
 
         SecurityUser currentUser = findUserByUsername(username);
@@ -109,9 +111,35 @@ public class DriverManager implements DriverService {
         Driver savedDriver = driverRepository.save(driver);
         DriverDto driverDto = driverConverter.toDto(savedDriver);
 
+        String ipAddress = extractClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
+
+        try {
+            contractService.autoAcceptMandatoryContracts(driver, ipAddress, userAgent);
+            log.info("Zorunlu sözleşmeler otomatik kabul edildi - Kullanıcı: {}", request.getNationalId());
+        } catch (Exception e) {
+            log.error("Zorunlu sözleşmeler otomatik kabul edilirken hata - Kullanıcı: {}", request.getNationalId(), e);
+            // Sözleşme kabul hatası kullanıcı kaydını engellemez, sadece log'lanır
+        }
+
         log.info("Successfully created driver with id: {} by user: {}", savedDriver.getId(), username);
         return new DataResponseMessage<>("Sürücü başarıyla oluşturuldu", true, driverDto);
     }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp.trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
 
     @Override
     public DataResponseMessage<DriverDto> updateDriver(Long id, UpdateDriverRequest dto, String username) throws UserNotFoundException, DriverNotFoundException {
